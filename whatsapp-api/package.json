@@ -1,0 +1,32 @@
+{
+  "name": "whatsapp-neo-api",
+  "version": "2.0.0",
+  "description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium — rebuilt with tsoa",
+  "private": true,
+  "scripts": {
+    "tsoa": "tsoa spec-and-routes",
+    "dev": "npm run tsoa && nodemon --watch src --ext ts,json --exec \"npm run tsoa && npx tsx src/server.ts\"",
+    "dev:fast": "nodemon --watch src --ext ts,json --ignore src/generated --exec \"npm run tsoa && npx tsx src/server.ts\"",
+    "build": "npm run tsoa && tsc --noEmit",
+    "start": "npm run tsoa && npx tsx src/server.ts"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "qrcode": "^1.5.4",
+    "swagger-ui-express": "^5.0.1",
+    "tsoa": "^6.4.0",
+    "whatsapp-web.js": "^1.26.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^20.14.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/swagger-ui-express": "^4.1.8",
+    "nodemon": "^3.1.4",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}

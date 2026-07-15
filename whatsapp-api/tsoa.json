@@ -1,0 +1,35 @@
+{
+  "entryFile": "src/server.ts",
+  "noImplicitAdditionalProperties": "throw-on-extras",
+  "controllerPathGlobs": ["src/controllers/**/*.ts"],
+  "spec": {
+    "outputDirectory": "src/generated",
+    "specVersion": 3,
+    "name": "WhatsApp Neo API",
+    "description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require a Bearer token:\n```\nAuthorization: Bearer <API_TOKEN>\n```",
+    "version": "2.0.0",
+    "securityDefinitions": {
+      "bearerAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Token",
+        "description": "API_TOKEN from .env — set in X-Api-Token request header"
+      }
+    },
+    "servers": [{ "url": "/", "description": "This server" }],
+    "tags": [
+      { "name": "System",    "description": "Liveness, session status and QR code" },
+      { "name": "Chats",     "description": "Chat list and message history" },
+      { "name": "Contacts",  "description": "WhatsApp contact list" },
+      { "name": "Messaging", "description": "Send text and media messages" }
+    ]
+  },
+  "routes": {
+    "routesDir": "src/generated",
+    "authenticationModule": "./src/middleware/auth",
+    "multerOpts": {
+      "dest": "/tmp/whatsapp-uploads/",
+      "limits": { "fileSize": 67108864 }
+    }
+  }
+}

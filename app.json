@@ -1,0 +1,24 @@
+[
+  {
+    "id":               "whatsapp-neo2",
+    "name":             "WhatsApp Neo2 API",
+    "description":      "Second instance — REST API for WhatsApp via whatsapp-web.js — send messages, get chats, forward webhooks. Built with tsoa.",
+    "category":         "Tools",
+    "port":             3022,
+    "scheme":           "http",
+    "icon":             "whatsapp",
+    "color":            "green",
+    "docker_container": "whatsapp-neo2-api"
+  },
+  {
+    "id":               "whatsapp-neo2-chromium",
+    "name":             "WhatsApp Neo2 Chromium",
+    "description":      "Second instance — Remote Chromium browser controlled by the WhatsApp Neo2 API stack — open to scan the QR code.",
+    "category":         "Tools",
+    "port":             3008,
+    "scheme":           "http",
+    "icon":             "chromium",
+    "color":            "blue",
+    "docker_container": "whatsapp-neo2-chromium"
+  }
+]
