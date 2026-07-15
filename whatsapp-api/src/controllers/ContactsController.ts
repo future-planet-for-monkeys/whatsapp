@@ -1,9 +1,11 @@
-import { Controller, Get, Query, Route, Tags, Security, Res, type TsoaResponse } from 'tsoa';
+import { Controller, Get, Post, Body, Query, Route, Tags, Security, Res, SuccessResponse, type TsoaResponse } from 'tsoa';
 import { whatsAppService } from '../services/WhatsAppService';
 import type {
   ContactsResponse,
   PhoneCheckResponse,
   PhoneCheckResult,
+  SaveContactBody,
+  SaveContactResponse,
   BadRequestError,
   ServiceUnavailableError,
 } from '../types';
@@ -116,6 +118,66 @@ export class ContactsController extends Controller {
         results,
         registered: !!firstRegistered,
         whatsappId: firstRegistered?.whatsappId ?? null,
+      };
+    } catch (outerErr: unknown) {
+      let classified: unknown = outerErr;
+      try {
+        await whatsAppService.handleOperationError(outerErr);
+      } catch (e) {
+        classified = e;
+      }
+      const typedErr = classified as { code?: string; message?: string; retryAfterSeconds?: number };
+      if (typedErr.code === 'WA_NOT_READY') {
+        const retry = typedErr.retryAfterSeconds ?? 10;
+        this.setHeader('Retry-After', String(retry));
+        return serviceUnavailable(503, {
+          error: typedErr.message ?? 'WhatsApp client not ready',
+          retryAfterSeconds: retry,
+        });
+      }
+      throw classified;
+    }
+  }
+
+  /**
+   * Save a new contact to the WhatsApp address book.
+   *
+   * The `phone` field should be a number with country code (digits only, e.g.
+   * `"16073041892"`). The contact will be saved to the WhatsApp cloud and
+   * optionally synced to the phone's address book.
+   *
+   * @param body Contact details
+   */
+  @Post('')
+  @SuccessResponse(201, 'Contact saved')
+  async saveContact(
+    @Body() body: SaveContactBody,
+    @Res() badRequest: TsoaResponse<400, BadRequestError>,
+    @Res() serviceUnavailable: TsoaResponse<503, ServiceUnavailableError>,
+  ): Promise<SaveContactResponse> {
+    const { phone, firstName, lastName, syncToAddressbook } = body;
+
+    if (!phone || !phone.replace(/\D/g, '')) {
+      return badRequest(400, { error: '`phone` must contain at least one digit.' });
+    }
+    if (!firstName || !firstName.trim()) {
+      return badRequest(400, { error: '`firstName` is required.' });
+    }
+
+    try {
+      const whatsappId = await whatsAppService.saveContact(
+        phone,
+        firstName.trim(),
+        lastName?.trim(),
+        syncToAddressbook ?? false,
+      );
+
+      this.setStatus(201);
+      return {
+        ok: true,
+        id: whatsappId,
+        phone: phone.replace(/\D/g, ''),
+        firstName: firstName.trim(),
       };
     } catch (outerErr: unknown) {
       let classified: unknown = outerErr;

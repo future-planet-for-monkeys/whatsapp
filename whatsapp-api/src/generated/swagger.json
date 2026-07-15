@@ -332,6 +332,63 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SaveContactResponse": {
+				"properties": {
+					"ok": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"id": {
+						"type": "string",
+						"description": "WhatsApp ID of the saved contact (e.g. \"16073041892@c.us\")"
+					},
+					"phone": {
+						"type": "string",
+						"description": "The phone number that was saved"
+					},
+					"firstName": {
+						"type": "string",
+						"description": "Contact's first name"
+					}
+				},
+				"required": [
+					"ok",
+					"id",
+					"phone",
+					"firstName"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SaveContactBody": {
+				"properties": {
+					"phone": {
+						"type": "string",
+						"description": "Phone number in digits only (e.g. \"16073041892\"). Include country code."
+					},
+					"firstName": {
+						"type": "string",
+						"description": "Contact's first name"
+					},
+					"lastName": {
+						"type": "string",
+						"description": "Contact's last name (optional)"
+					},
+					"syncToAddressbook": {
+						"type": "boolean",
+						"description": "If true, also sync to the phone's address book. Default false."
+					}
+				},
+				"required": [
+					"phone",
+					"firstName"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"LastMessage": {
 				"properties": {
 					"body": {
@@ -789,6 +846,63 @@
 						}
 					}
 				]
+			},
+			"post": {
+				"operationId": "SaveContact",
+				"responses": {
+					"201": {
+						"description": "Contact saved",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SaveContactResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BadRequestError"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ServiceUnavailableError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Save a new contact to the WhatsApp address book.\n\nThe `phone` field should be a number with country code (digits only, e.g.\n`\"16073041892\"`). The contact will be saved to the WhatsApp cloud and\noptionally synced to the phone's address book.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Contact details",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveContactBody",
+								"description": "Contact details"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/contacts/check": {
@@ -922,7 +1036,7 @@
 						}
 					}
 				},
-				"description": "Fetch message history for a specific chat.",
+				"description": "Fetch message history for a specific chat.\n\nUses a custom implementation that bypasses the SDK's getChatById() which\nhas serialization issues with certain chat types (LID-based contacts, etc.).",
 				"tags": [
 					"Chats"
 				],
@@ -958,7 +1072,7 @@
 	},
 	"servers": [
 		{
-			"url": "/"
+			"url": "https://[object Object]/"
 		}
 	],
 	"tags": [

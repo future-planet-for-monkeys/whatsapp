@@ -297,7 +297,6 @@ export class WhatsAppService {
       });
       
       var ephemeralFields = (globalThis as any).require('WAWebGetEphemeralFieldsMsgActionsUtils').getEphemeralFields(chat);
-      
       var message = {
         id: newMsgKey,
         ack: 0,
@@ -306,7 +305,7 @@ export class WhatsAppService {
         to: chat.id,
         local: true,
         self: 'out',
-        t: parseInt(new Date().getTime() / 1000),
+        t: new Date().getTime() / 1000,
         isNewMsg: true,
         type: 'chat',
         ...ephemeralFields,
@@ -355,6 +354,39 @@ export class WhatsAppService {
       to: chatId,
       timestamp: typeof result.timestamp === 'number' ? result.timestamp : (result.t || 0),
     };
+  }
+
+  /**
+   * Save a new contact to the WhatsApp address book.
+   *
+   * Uses the SDK's saveOrEditAddressbookContact which calls
+   * WAWebSaveContactAction.saveContactAction() internally.
+   *
+   * @param phone Phone number in digits-only format (with country code)
+   * @param firstName Contact's first name
+   * @param lastName Optional last name
+   * @param syncToAddressbook Whether to sync to the phone's address book
+   * @returns The normalised WhatsApp ID (e.g. "16073041892@c.us")
+   */
+  async saveContact(
+    phone: string,
+    firstName: string,
+    lastName?: string,
+    syncToAddressbook = false,
+  ): Promise<string> {
+    const client = this.assertReady();
+    // Strip any non-digit characters just in case
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) throw new Error('Phone number must contain at least one digit');
+    
+    await client.saveOrEditAddressbookContact(
+      digits,
+      firstName,
+      lastName || '',
+      syncToAddressbook,
+    );
+    
+    return `${digits}@c.us`;
   }
 
   /**

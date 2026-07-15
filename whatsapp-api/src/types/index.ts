@@ -125,6 +125,29 @@ export interface PhoneCheckResponse {
   whatsappId: string | null;
 }
 
+// ── Save contact ─────────────────────────────────────────────────────────────
+
+export interface SaveContactBody {
+  /** Phone number in digits only (e.g. "16073041892"). Include country code. */
+  phone: string;
+  /** Contact's first name */
+  firstName: string;
+  /** Contact's last name (optional) */
+  lastName?: string;
+  /** If true, also sync to the phone's address book. Default false. */
+  syncToAddressbook?: boolean;
+}
+
+export interface SaveContactResponse {
+  ok: true;
+  /** WhatsApp ID of the saved contact (e.g. "16073041892@c.us") */
+  id: string;
+  /** The phone number that was saved */
+  phone: string;
+  /** Contact's first name */
+  firstName: string;
+}
+
 // ── Send text ────────────────────────────────────────────────────────────────
 
 export interface SendMessageBody {

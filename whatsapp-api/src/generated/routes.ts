@@ -167,6 +167,28 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SaveContactResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "ok": {"dataType":"enum","enums":[true],"required":true},
+            "id": {"dataType":"string","required":true},
+            "phone": {"dataType":"string","required":true},
+            "firstName": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SaveContactBody": {
+        "dataType": "refObject",
+        "properties": {
+            "phone": {"dataType":"string","required":true},
+            "firstName": {"dataType":"string","required":true},
+            "lastName": {"dataType":"string"},
+            "syncToAddressbook": {"dataType":"boolean"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "LastMessage": {
         "dataType": "refObject",
         "properties": {
@@ -468,6 +490,39 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 next,
                 validatedArgs,
                 successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsContactsController_saveContact: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"ref":"SaveContactBody"},
+                badRequest: {"in":"res","name":"400","required":true,"ref":"BadRequestError"},
+                serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
+        };
+        app.post('/contacts',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ContactsController)),
+            ...(fetchMiddlewares<RequestHandler>(ContactsController.prototype.saveContact)),
+
+            async function ContactsController_saveContact(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsContactsController_saveContact, request, response });
+
+                const controller = new ContactsController();
+
+              await templateService.apiHandler({
+                methodName: 'saveContact',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 201,
               });
             } catch (err) {
                 return next(err);
