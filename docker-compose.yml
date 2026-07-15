@@ -1,7 +1,7 @@
 services:
   whatsapp-chromium:
     build:
-      context: ../whatsapp-neo/chromium-vnc
+      context: ./chromium-vnc
     image: whatsapp-chromium-vnc2:local
     container_name: ${INSTANCE_NAME:-whatsapp-neo}-chromium
     restart: unless-stopped
@@ -32,7 +32,7 @@ services:
 
   whatsapp-api:
     build:
-      context: ../whatsapp-neo/whatsapp-api
+      context: ./whatsapp-api
     image: whatsapp-neo-api:local
     container_name: ${INSTANCE_NAME:-whatsapp-neo}-api
     restart: unless-stopped
@@ -43,7 +43,7 @@ services:
       - "${API_PORT:-3022}:3000"
     volumes:
       # Source files from host — changes trigger auto-reload via nodemon
-      - ../whatsapp-neo/whatsapp-api/src:/app/src
+      - ./whatsapp-api/src:/app/src
       # Session persistence — survives container restarts
       - ${INSTANCE_NAME:-whatsapp-neo}_session:/app/.wwebjs_auth
       # node_modules live inside the image layer, NOT on the host
