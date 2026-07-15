@@ -285,12 +285,13 @@ export class WhatsAppService {
       console.log('╚══════════════════════════════════════════════════════════════╝');
       console.log('');
       try {
-        // Use utf8 type for clean Unicode block characters (no ANSI escape codes)
-        // that render correctly in Docker logs and are scannable with a phone.
-        const qrUtf8 = await qrcode.toString(qr, { type: 'utf8' });
-        console.log(qrUtf8);
+        // qrcode.toString() with 'utf8' type generates clean scannable QR
+        // using Unicode half-block characters (▄▄▄ █ ▀▀▀) — no ANSI escape
+        // codes, renders correctly in Docker logs.
+        const qrImage = await qrcode.toString(qr, { type: 'utf8' });
+        console.log(qrImage);
       } catch {
-        // Fallback: log the raw QR string if ASCII generation fails
+        // Fallback: log the raw QR string if generation fails
         console.log('[whatsapp] QR raw string:', qr);
       }
       console.log('');
