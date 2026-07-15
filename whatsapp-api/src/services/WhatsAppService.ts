@@ -18,6 +18,33 @@ interface CdpTarget {
   webSocketDebuggerUrl: string;
 }
 
+/** Raw WhatsApp Web internal message model (used inside page.evaluate()).
+ *  These are the low-level model objects from WAWebCollections.Msg, not the
+ *  SDK's serialized Message interface. */
+interface RawMessage {
+  id?: { fromMe?: boolean; _serialized?: string };
+  /** Internal timestamp property (lowercase) */
+  t: number;
+  isNotification?: boolean;
+}
+
+/** Serialized message model returned by WWebJS.getMessageModel().
+ *  This is the data shape after message.serialize() — it matches the SDK's
+ *  Message interface data properties but without the wrapper methods. */
+interface MessageModel {
+  id: { _serialized: string; fromMe: boolean; remote: string; id: string };
+  from: string;
+  to: string;
+  body: string;
+  type: string;
+  timestamp: number;
+  fromMe: boolean;
+  hasMedia: boolean;
+  author?: string;
+  /** Internal timestamp fallback (present on some serialized models) */
+  t?: number;
+}
+
 // ---------------------------------------------------------------------------
 // WhatsAppService — manages a single whatsapp-web.js Client instance.
 //
@@ -322,8 +349,8 @@ export class WhatsAppService {
       if (!sentMsg) {
         // Fallback: get the most recent outgoing message
         var msgs = chat.msgs?.getModelsArray() || [];
-        var outgoing = msgs.filter(function(m) { return m.id?.fromMe; });
-        outgoing.sort(function(a, b) { return a.t > b.t ? -1 : 1; });
+        var outgoing = msgs.filter(function(m: RawMessage) { return m.id?.fromMe; });
+        outgoing.sort(function(a: RawMessage, b: RawMessage) { return a.t > b.t ? -1 : 1; });
         sentMsg = outgoing[0];
       }
       if (!sentMsg) {
@@ -453,10 +480,10 @@ export class WhatsAppService {
       }
       
       // Filter out notification messages
-      var filtered = msgs.filter(function(m) { return !m.isNotification; });
+      var filtered = msgs.filter(function(m: RawMessage) { return !m.isNotification; });
       
       // Sort earliest to latest
-      filtered.sort(function(a, b) { return a.t > b.t ? 1 : -1; });
+      filtered.sort(function(a: RawMessage, b: RawMessage) { return a.t > b.t ? 1 : -1; });
       
       // Load earlier messages if needed
       if (a.limit > 0) {
@@ -464,7 +491,7 @@ export class WhatsAppService {
           try {
             var loadedMessages = await WAWebChatLoadMessages.loadEarlierMsgs({ chat: chat });
             if (!loadedMessages || !loadedMessages.length) break;
-            filtered = loadedMessages.filter(function(m) { return !m.isNotification; }).concat(filtered);
+            filtered = loadedMessages.filter(function(m: RawMessage) { return !m.isNotification; }).concat(filtered);
           } catch (e) {
             break;
           }
@@ -477,11 +504,11 @@ export class WhatsAppService {
       }
       
       // Use the SDK's own message serializer for each message
-      return filtered.map(function(m) { return (globalThis as any).WWebJS.getMessageModel(m); });
+      return filtered.map(function(m: RawMessage) { return (globalThis as any).WWebJS.getMessageModel(m); });
     }, { chatId, limit });
     
     // Map to our API response format, extracting only safe properties
-    return messages.map(function(m) {
+    return (messages as MessageModel[]).map(function(m: MessageModel) {
       return {
         id: m.id?._serialized || m.id || '',
         from: m.from || '',
