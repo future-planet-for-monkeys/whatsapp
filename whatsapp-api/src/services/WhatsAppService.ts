@@ -151,6 +151,78 @@ export class WhatsAppService {
   }
 
   /**
+   * Get all WhatsApp chats using a custom implementation.
+   *
+   * Why not use client.getChats()?
+   * The SDK's getChats() method has a serialization bug where it tries to serialize
+   * complex message objects that contain circular references or non-serializable
+   * properties. This causes Puppeteer to throw a cryptic "r" error when trying to
+   * return the data from the browser context to Node.js.
+   *
+   * Our approach:
+   * - Fetch chats directly from WhatsApp Web's internal collections
+   * - Process each chat individually with try-catch error handling
+   * - Extract only the safe, serializable properties we need
+   * - Skip any problematic chats instead of failing the entire request
+   */
+  async getChats(): Promise<any[]> {
+    const client = this.assertReady();
+    const page = client.pupPage;
+    
+    if (!page) {
+      throw new Error('Puppeteer page not available');
+    }
+    
+    const chats = await page.evaluate(async () => {
+      // Access WhatsApp Web's internal chat collection
+      const chatModels = (globalThis as any).require('WAWebCollections').Chat.getModelsArray();
+      const results = [];
+      
+      // Process each chat individually to isolate serialization errors
+      for (const chat of chatModels) {
+        try {
+          // Build a safe, minimal representation of the chat
+          const serialized: any = {
+            id: { _serialized: chat.id?._serialized || chat.id },
+            name: chat.name || chat.formattedTitle || '',
+            isGroup: !!chat.isGroup,
+            unreadCount: chat.unreadCount || 0,
+            timestamp: chat.t || 0,
+          };
+          
+          // Try to add the last message if it exists
+          // This is wrapped in try-catch because message objects can be problematic
+          if (chat.lastReceivedKey) {
+            try {
+              const lastMsg = chat.msgs?.get(chat.lastReceivedKey);
+              if (lastMsg) {
+                // Extract only primitive, serializable properties
+                serialized.lastMessage = {
+                  body: lastMsg.body || '',
+                  type: lastMsg.type || 'chat',
+                  timestamp: lastMsg.t || 0,
+                  fromMe: !!lastMsg.id?.fromMe,
+                };
+              }
+            } catch (e) {
+              // If lastMessage fails, just omit it - the chat is still valid
+            }
+          }
+          
+          results.push(serialized);
+        } catch (e) {
+          // If a chat can't be serialized at all, skip it and continue
+          // This prevents one bad chat from breaking the entire request
+        }
+      }
+      
+      return results;
+    });
+    
+    return chats;
+  }
+
+  /**
    * Classifies an error thrown during a client operation.
    *
    * Store-not-ready errors (stores still loading after `ready`) → marks the

@@ -22,21 +22,21 @@ export class ChatsController extends Controller {
     const cap = Math.min(Math.max(1, limit), 200);
 
     try {
-      const client = whatsAppService.assertReady();
-      const chats = await client.getChats();
+      // Use the safe getChats method from the service
+      const chats = await whatsAppService.getChats();
 
       const items = chats.slice(0, cap).map((c) => ({
-        id: c.id._serialized,
-        name: c.name,
-        isGroup: c.isGroup,
-        unreadCount: c.unreadCount,
-        timestamp: c.timestamp,
+        id: c.id._serialized || c.id,
+        name: c.name || '',
+        isGroup: c.isGroup || false,
+        unreadCount: c.unreadCount || 0,
+        timestamp: c.timestamp || 0,
         lastMessage: c.lastMessage
           ? {
-              body: c.lastMessage.body,
-              type: c.lastMessage.type,
-              timestamp: c.lastMessage.timestamp,
-              fromMe: c.lastMessage.fromMe,
+              body: c.lastMessage.body || '',
+              type: c.lastMessage.type || 'chat',
+              timestamp: c.lastMessage.timestamp || 0,
+              fromMe: c.lastMessage.fromMe || false,
             }
           : null,
       }));
