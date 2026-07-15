@@ -65,6 +65,9 @@ export class ChatsController extends Controller {
   /**
    * Fetch message history for a specific chat.
    *
+   * Uses a custom implementation that bypasses the SDK's getChatById() which
+   * has serialization issues with certain chat types (LID-based contacts, etc.).
+   *
    * @param chatId WhatsApp chat ID, e.g. `16073041892@c.us` or `123456789@g.us`
    * @param limit  Number of messages to fetch (1–200, default 50)
    */
@@ -77,23 +80,9 @@ export class ChatsController extends Controller {
     const cap = Math.min(Math.max(1, limit), 200);
 
     try {
-      const client = whatsAppService.assertReady();
-      const chat = await client.getChatById(chatId);
-      const messages = await chat.fetchMessages({ limit: cap });
+      const messages = await whatsAppService.getChatMessages(chatId, cap);
 
-      const items = messages.map((m) => ({
-        id: m.id._serialized,
-        from: m.from,
-        to: m.to,
-        body: m.body,
-        type: m.type,
-        timestamp: m.timestamp,
-        fromMe: m.fromMe,
-        hasMedia: m.hasMedia,
-        author: m.author ?? null,
-      }));
-
-      return { chatId, count: items.length, messages: items };
+      return { chatId, count: messages.length, messages };
     } catch (outerErr: unknown) {
       let classified: unknown = outerErr;
       try {

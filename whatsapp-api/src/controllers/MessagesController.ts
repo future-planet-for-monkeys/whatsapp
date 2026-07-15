@@ -14,7 +14,9 @@ import type { SendMessageBody, MessageSentResponse, BadRequestError, ServiceUnav
  *   "123456789@g.us"      → pass-through (group)
  */
 function normaliseChatId(raw: string): string {
-  if (raw.endsWith('@c.us') || raw.endsWith('@g.us')) return raw;
+  // Pass through known WhatsApp ID formats unchanged
+  if (raw.endsWith('@c.us') || raw.endsWith('@g.us') || raw.endsWith('@lid') || raw.endsWith('@broadcast') || raw.endsWith('@newsletter')) return raw;
+  // Strip all non-digit characters and build a @c.us ID
   const digits = raw.replace(/\D/g, '');
   if (!digits) throw new Error(`Invalid recipient: "${raw}"`);
   return `${digits}@c.us`;
@@ -55,13 +57,14 @@ export class MessagesController extends Controller {
     }
 
     try {
-      const client = whatsAppService.assertReady();
-      const result = await client.sendMessage(chatId, message);
+      // Use our custom sendTextMessage which avoids the SDK's broken
+      // serialization path in client.sendMessage()
+      const result = await whatsAppService.sendTextMessage(chatId, message);
 
       this.setStatus(201);
       return {
         ok: true,
-        id: result.id._serialized,
+        id: result.id,
         to: chatId,
         timestamp: result.timestamp,
       };
