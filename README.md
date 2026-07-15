@@ -195,7 +195,7 @@ curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/status
 
 ## API Reference
 
-A full interactive Swagger UI is available at [`http://localhost:3022/docs`](http://localhost:3022/docs) when the server is running. Below is the complete endpoint reference.
+A full interactive Swagger UI is available at [`http://localhost:3022/docs`](http://localhost:3022/docs) when the server is running. A plain-text API reference is also available at [`whatsapp-api/docs/api.md`](whatsapp-api/docs/api.md). Below is the complete endpoint reference.
 
 ### System Endpoints
 
