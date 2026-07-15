@@ -1,4 +1,4 @@
-# WhatsApp Neo API
+ear# WhatsApp Neo API
 
 A REST API for WhatsApp built on [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js) with a remote Chromium browser instance. Send and receive messages, manage chats and contacts, and attach webhooks — all via a clean HTTP API.
 
@@ -84,16 +84,55 @@ The [`/health`](whatsapp-api/src/controllers/HealthController.ts) endpoint is **
 
 ## Logging In (QR Code Authentication)
 
-### Option A: Scan via noVNC (browser GUI)
+### Option A: Scan via Docker logs (console)
 
-1. Open `http://localhost:3008` in your browser.
-2. You'll see a noVNC window connected to the remote Chromium.
-3. Wait for WhatsApp Web to load and display a QR code.
-4. Open WhatsApp on your phone → **Linked Devices** → **Link a Device**.
-5. Scan the QR code displayed in the noVNC window.
-6. The session is persisted in a Docker volume — it survives container restarts.
+Watch the container logs for the QR code — it's printed as ASCII art whenever a new QR is generated:
 
-### Option B: Scan via API
+```bash
+docker-compose logs -f whatsapp-api
+```
+
+When the QR code appears, you'll see output like:
+
+```
+[whatsapp] QR code ready — scan with your phone
+
+╔══════════════════════════════════════════════════════════════╗
+║           🔐  WHATSAPP QR CODE — SCAN TO LOGIN             ║
+╚══════════════════════════════════════════════════════════════╝
+
+          ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+          █ ▄▄▄▄▄ █▄▀ ▀▄ ▄▀█▄▀█ █▄▀█ ▄▄▄▄▄ █
+          █ █   █ █▄▄▄█ ▀▄▄▄▀█▄▄▄█ █ █   █ █
+          █ █▄▄▄█ █▀ █▄█▄▀▄▀█▄▄▀  █ █▄▄▄█ █
+          █▄▄▄▄▄▄▄█ █ █ █▄▀▄▀▄█▄▀▄█▄▄▄▄▄▄▄█
+          █ ▄▄▄ ▄▄▄▄▄▀▄▀▄▀█▄█ ▄▀▄▀▄█▀▄ ▄▀▄█
+          █ ▄█▄▄▄▄  ▀▄█▄▀▄▀▄▀▄▀▄ █▄▄█▄▀▄▀▄█
+          █▄▀▄█▀▄▄▄▄▄ ▀█▄▀▄▄▀▄▄▀ █▄█▄▀▄▀▄ ██
+          █▄ ▄ █▄▄▄█▄█ ▄▄▀▄▄ ▀▄█▄▀▄▄▄▄█▄▀▄▄█
+          █▄▀▄▀▄█▄▄▄▀▄  ▀▄▀ ▀▄▀▄▀██▀▄▀▄▀▄▀▄█
+          █▄▄▄▄▄▄▄█▀▄▀▄▀▄▀▄▀▄█▄▄▄▄▄▄█▄▄▄▀▄▄█
+          ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+   📱  Open WhatsApp → Linked Devices → Link a Device
+   🌐  Or open http://localhost:3022/qr in a browser
+```
+
+The QR code is re-printed each time it refreshes (every ~20 seconds). Simply scan it with your phone.
+
+### Option B: Scan via browser (HTML page)
+
+Open the QR code endpoint in your browser — it renders a nicely formatted HTML page with the QR code image and step-by-step instructions:
+
+```
+http://localhost:3022/qr
+```
+
+The page auto-refreshes every 30 seconds, so you can keep it open while you grab your phone. If the QR code isn't available yet, the page shows the current status and a link to [`/status`](#get-status--session-status).
+
+> **Note**: You still need to supply the `X-Api-Token` header. In a browser, you can use a tool like [ModHeader](https://modheader.com/) or access it via the API (see Option C).
+
+### Option C: Scan via API (curl/CLI)
 
 1. Check the session status:
 
@@ -116,6 +155,15 @@ curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/qr?format=js
 ```
 
 3. Scan the QR code with WhatsApp on your phone.
+
+### Option D: Scan via noVNC (browser GUI)
+
+1. Open `http://localhost:3008` in your browser.
+2. You'll see a noVNC window connected to the remote Chromium.
+3. Wait for WhatsApp Web to load and display a QR code.
+4. Open WhatsApp on your phone → **Linked Devices** → **Link a Device**.
+5. Scan the QR code displayed in the noVNC window.
+6. The session is persisted in a Docker volume — it survives container restarts.
 
 ### Authentication States
 
@@ -183,20 +231,29 @@ curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/status
 
 #### `GET /qr` — QR code for authentication
 
-| Query Param | Values | Default | Description |
+This endpoint has **three output modes**, selected based on the `Accept` header or `format` query parameter:
+
+| Mode | How to trigger | Content-Type | Description |
 |---|---|---|---|
-| `format` | `json` or `png` | `json` (via API) | `json` returns a base64 data-URL; `png` returns raw image bytes |
+| **HTML page** | Browser request (`Accept: text/html`) | `text/html` | Full-page QR display with phone instructions, auto-refreshes every 30 s |
+| **PNG image** | `?format=png` or default | `image/png` | Raw QR code image bytes — save to file or embed in an `<img>` tag |
+| **JSON** | `?format=json` | `application/json` | `{ "qr": "data:image/png;base64,..." }` |
 
 ```bash
-# As base64 JSON
-curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/qr?format=json
+# HTML page (open in browser) — requires X-Api-Token header
+# Use a browser extension like ModHeader, or curl with -o:
+curl -H "X-Api-Token: your-secret-token-here" -H "Accept: text/html" http://localhost:3022/qr -o qr.html
 
-# As PNG image
+# PNG image (default)
 curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/qr?format=png -o qr.png
+
+# Base64 JSON
+curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/qr?format=json
 ```
 
-- Returns `409` when the QR code is not available (check [`/status`](#get-status--session-status) first).
+- Returns `409` (or a status page in HTML mode) when the QR code is not available — check [`/status`](#get-status--session-status) first.
 - The QR is only present while status is `qr_ready`.
+- **Console output**: Every time a new QR is generated, it's also printed as ASCII art in the Docker container logs — just run `docker-compose logs -f whatsapp-api` to see it.
 
 ### Messaging Endpoints
 

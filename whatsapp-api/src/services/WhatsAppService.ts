@@ -275,9 +275,28 @@ export class WhatsAppService {
     // ── Standard lifecycle events ─────────────────────────────────────────
 
     client.on('qr', async (qr) => {
-      console.log('[whatsapp] QR code ready — scan with your phone');
       this._status = 'qr_ready';
       this._qrDataURL = await qrcode.toDataURL(qr);
+
+      // Print QR as ASCII art to console (visible in docker logs)
+      console.log('');
+      console.log('╔══════════════════════════════════════════════════════════════╗');
+      console.log('║           🔐  WHATSAPP QR CODE — SCAN TO LOGIN             ║');
+      console.log('╚══════════════════════════════════════════════════════════════╝');
+      console.log('');
+      try {
+        // Use utf8 type for clean Unicode block characters (no ANSI escape codes)
+        // that render correctly in Docker logs and are scannable with a phone.
+        const qrUtf8 = await qrcode.toString(qr, { type: 'utf8' });
+        console.log(qrUtf8);
+      } catch {
+        // Fallback: log the raw QR string if ASCII generation fails
+        console.log('[whatsapp] QR raw string:', qr);
+      }
+      console.log('');
+      console.log('   📱  Open WhatsApp → Linked Devices → Link a Device');
+      console.log(`   🌐  Or open http://localhost:${config.PORT}/qr in a browser`);
+      console.log('');
     });
 
     client.on('authenticated', () => {

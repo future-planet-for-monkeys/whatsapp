@@ -57,6 +57,39 @@ export function createApp(): express.Express {
 
     const qrDataURL = whatsAppService.qrDataURL;
     if (!qrDataURL) {
+      // If a browser is requesting via Accept: text/html, serve a status page
+      const accept = req.headers.accept ?? '';
+      if (accept.includes('text/html')) {
+        return res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp QR — Not Available</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #111b21; color: #e9edef;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .container { text-align: center; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    p { color: #8696a0; margin-bottom: 0.5rem; }
+    .status { color: #f15c52; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>QR Code Not Available</h1>
+    <p>Current status: <span class="status">${whatsAppService.status}</span></p>
+    <p>The QR code is only shown while the session is in <strong>qr_ready</strong> state.</p>
+    <p>Check <a href="/status" style="color:#00a884;">/status</a> for the current state.</p>
+  </div>
+</body>
+</html>`);
+      }
       return res.status(409).json({
         error: 'QR code not available',
         hint: `Current status is '${whatsAppService.status}'. QR is only present during 'qr_ready'.`,
@@ -65,6 +98,65 @@ export function createApp(): express.Express {
 
     const base64 = qrDataURL.replace(/^data:image\/png;base64,/, '');
     const buffer = Buffer.from(base64, 'base64');
+
+    // If a browser is requesting via Accept: text/html, serve an HTML page
+    // with the QR code image embedded — makes it easy to scan from any device.
+    const accept = req.headers.accept ?? '';
+    if (accept.includes('text/html')) {
+      return res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp QR — Scan to Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #111b21; color: #e9edef;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .container { text-align: center; padding: 2rem; max-width: 420px; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .subtitle { color: #8696a0; margin-bottom: 1.5rem; font-size: 0.875rem; }
+    .qr-wrapper {
+      background: #fff; border-radius: 12px; padding: 1.5rem;
+      display: inline-block; margin-bottom: 1.5rem;
+    }
+    .qr-wrapper img { display: block; width: 264px; height: 264px; image-rendering: pixelated; }
+    .steps { text-align: left; background: #1f2c33; border-radius: 8px; padding: 1rem; }
+    .steps ol { margin: 0; padding-left: 1.25rem; }
+    .steps li { margin-bottom: 0.5rem; color: #d1d7db; font-size: 0.875rem; }
+    .steps li:last-child { margin-bottom: 0; }
+    .refresh { margin-top: 1rem; font-size: 0.75rem; color: #8696a0; }
+    .error { color: #f15c52; }
+    a { color: #00a884; }
+  </style>
+  <meta http-equiv="refresh" content="30">
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Scan to Link WhatsApp</h1>
+    <p class="subtitle">Use your phone to scan the QR code below</p>
+    <div class="qr-wrapper">
+      <img src="data:image/png;base64,${base64}" alt="WhatsApp QR Code" />
+    </div>
+    <div class="steps">
+      <ol>
+        <li>Open <strong>WhatsApp</strong> on your phone</li>
+        <li>Tap <strong>Menu</strong> ⋮ or <strong>Settings</strong> ⚙</li>
+        <li>Select <strong>Linked Devices</strong></li>
+        <li>Tap <strong>Link a Device</strong></li>
+        <li>Point your camera at this QR code</li>
+      </ol>
+    </div>
+    <p class="refresh">Auto-refreshes every 30 seconds</p>
+  </div>
+</body>
+</html>`);
+    }
+
     return res.set('Content-Type', 'image/png').send(buffer);
   });
 
