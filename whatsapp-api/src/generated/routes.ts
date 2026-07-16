@@ -8,6 +8,8 @@ import { StatusController } from './../controllers/StatusController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { QrController } from './../controllers/QrController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { MessagesReadController } from './../controllers/MessagesReadController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { MessagesController } from './../controllers/MessagesController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { MediaController } from './../controllers/MediaController';
@@ -62,6 +64,24 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ErrorResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "error": {"dataType":"string","required":true},
+            "retryAfterSeconds": {"dataType":"double"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ServiceUnavailableError": {
+        "dataType": "refObject",
+        "properties": {
+            "error": {"dataType":"string","required":true},
+            "retryAfterSeconds": {"dataType":"double","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "MessageSentResponse": {
         "dataType": "refObject",
         "properties": {
@@ -87,15 +107,6 @@ const models: TsoaRoute.Models = {
         "properties": {
             "error": {"dataType":"string","required":true},
             "retryAfterSeconds": {"dataType":"double"},
-        },
-        "additionalProperties": false,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "ServiceUnavailableError": {
-        "dataType": "refObject",
-        "properties": {
-            "error": {"dataType":"string","required":true},
-            "retryAfterSeconds": {"dataType":"double","required":true},
         },
         "additionalProperties": false,
     },
@@ -218,6 +229,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "count": {"dataType":"double","required":true},
             "chats": {"dataType":"array","array":{"dataType":"refObject","ref":"ChatItem"},"required":true},
+            "hasMore": {"dataType":"boolean","required":true},
         },
         "additionalProperties": false,
     },
@@ -234,6 +246,8 @@ const models: TsoaRoute.Models = {
             "fromMe": {"dataType":"boolean","required":true},
             "hasMedia": {"dataType":"boolean","required":true},
             "author": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "mimeType": {"dataType":"string"},
+            "filename": {"dataType":"string"},
         },
         "additionalProperties": false,
     },
@@ -244,6 +258,7 @@ const models: TsoaRoute.Models = {
             "chatId": {"dataType":"string","required":true},
             "count": {"dataType":"double","required":true},
             "messages": {"dataType":"array","array":{"dataType":"refObject","ref":"MessageItem"},"required":true},
+            "hasMore": {"dataType":"boolean","required":true},
         },
         "additionalProperties": false,
     },
@@ -269,7 +284,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         const argsStatusController_fetchStatus: Record<string, TsoaRoute.ParameterSchema> = {
         };
         app.get('/status',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(StatusController)),
             ...(fetchMiddlewares<RequestHandler>(StatusController.prototype.fetchStatus)),
 
@@ -301,7 +316,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 unavailable: {"in":"res","name":"409","required":true,"ref":"QrUnavailableError"},
         };
         app.get('/qr',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(QrController)),
             ...(fetchMiddlewares<RequestHandler>(QrController.prototype.getQr)),
 
@@ -328,13 +343,46 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsMessagesReadController_getMedia: Record<string, TsoaRoute.ParameterSchema> = {
+                messageId: {"in":"path","name":"messageId","required":true,"dataType":"string"},
+                notFound: {"in":"res","name":"404","required":true,"ref":"ErrorResponse"},
+                serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
+        };
+        app.get('/messages/:messageId/media',
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(MessagesReadController)),
+            ...(fetchMiddlewares<RequestHandler>(MessagesReadController.prototype.getMedia)),
+
+            async function MessagesReadController_getMedia(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsMessagesReadController_getMedia, request, response });
+
+                const controller = new MessagesReadController();
+
+              await templateService.apiHandler({
+                methodName: 'getMedia',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsMessagesController_sendMessage: Record<string, TsoaRoute.ParameterSchema> = {
                 body: {"in":"body","name":"body","required":true,"ref":"SendMessageBody"},
                 badRequest: {"in":"res","name":"400","required":true,"ref":"BadRequestError"},
                 serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
         };
         app.post('/send',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(MessagesController)),
             ...(fetchMiddlewares<RequestHandler>(MessagesController.prototype.sendMessage)),
 
@@ -369,7 +417,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 caption: {"in":"formData","name":"caption","dataType":"string"},
         };
         app.post('/send-media',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             upload.fields([
                 {
                     name: "file",
@@ -436,7 +484,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
         };
         app.get('/contacts',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(ContactsController)),
             ...(fetchMiddlewares<RequestHandler>(ContactsController.prototype.getContacts)),
 
@@ -469,7 +517,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
         };
         app.get('/contacts/check',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(ContactsController)),
             ...(fetchMiddlewares<RequestHandler>(ContactsController.prototype.checkPhone)),
 
@@ -502,7 +550,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
         };
         app.post('/contacts',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(ContactsController)),
             ...(fetchMiddlewares<RequestHandler>(ContactsController.prototype.saveContact)),
 
@@ -529,12 +577,46 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsContactsController_getAvatar: Record<string, TsoaRoute.ParameterSchema> = {
+                contactId: {"in":"path","name":"contactId","required":true,"dataType":"string"},
+                notFound: {"in":"res","name":"404","required":true,"ref":"ErrorResponse"},
+                serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
+        };
+        app.get('/contacts/:contactId/avatar',
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ContactsController)),
+            ...(fetchMiddlewares<RequestHandler>(ContactsController.prototype.getAvatar)),
+
+            async function ContactsController_getAvatar(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsContactsController_getAvatar, request, response });
+
+                const controller = new ContactsController();
+
+              await templateService.apiHandler({
+                methodName: 'getAvatar',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsChatsController_getChats: Record<string, TsoaRoute.ParameterSchema> = {
                 limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
+                offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
                 serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
         };
         app.get('/chats',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(ChatsController)),
             ...(fetchMiddlewares<RequestHandler>(ChatsController.prototype.getChats)),
 
@@ -565,9 +647,10 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 chatId: {"in":"path","name":"chatId","required":true,"dataType":"string"},
                 limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
                 serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
+                before: {"in":"query","name":"before","dataType":"double"},
         };
         app.get('/chats/:chatId/messages',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(ChatsController)),
             ...(fetchMiddlewares<RequestHandler>(ChatsController.prototype.getChatMessages)),
 
@@ -588,6 +671,39 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 next,
                 validatedArgs,
                 successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsChatsController_markChatRead: Record<string, TsoaRoute.ParameterSchema> = {
+                chatId: {"in":"path","name":"chatId","required":true,"dataType":"string"},
+                serviceUnavailable: {"in":"res","name":"503","required":true,"ref":"ServiceUnavailableError"},
+                notFound: {"in":"res","name":"404","required":true,"ref":"ErrorResponse"},
+        };
+        app.post('/chats/:chatId/read',
+            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ChatsController)),
+            ...(fetchMiddlewares<RequestHandler>(ChatsController.prototype.markChatRead)),
+
+            async function ChatsController_markChatRead(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsChatsController_markChatRead, request, response });
+
+                const controller = new ChatsController();
+
+              await templateService.apiHandler({
+                methodName: 'markChatRead',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
               });
             } catch (err) {
                 return next(err);

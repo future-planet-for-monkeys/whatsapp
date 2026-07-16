@@ -8,6 +8,7 @@ import type { StatusResponse } from '../types';
 @Route('status')
 @Tags('System')
 @Security('bearerAuth')
+@Security('basicAuth')
 export class StatusController extends Controller {
   /**
    * Get the current WhatsApp client connection status.

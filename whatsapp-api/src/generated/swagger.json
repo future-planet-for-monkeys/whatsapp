@@ -77,6 +77,42 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ErrorResponse": {
+				"properties": {
+					"error": {
+						"type": "string"
+					},
+					"retryAfterSeconds": {
+						"type": "number",
+						"format": "double",
+						"description": "Seconds until the client is expected to be ready (503 responses only)"
+					}
+				},
+				"required": [
+					"error"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ServiceUnavailableError": {
+				"description": "503 Service Unavailable — WhatsApp client is not in the 'ready' state.\nShared across controllers so tsoa sees exactly one model definition.",
+				"properties": {
+					"error": {
+						"type": "string"
+					},
+					"retryAfterSeconds": {
+						"type": "number",
+						"format": "double",
+						"description": "Seconds until the client is expected to be ready (503 responses only)"
+					}
+				},
+				"required": [
+					"error",
+					"retryAfterSeconds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"MessageSentResponse": {
 				"properties": {
 					"ok": {
@@ -141,25 +177,6 @@
 				},
 				"required": [
 					"error"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ServiceUnavailableError": {
-				"description": "503 Service Unavailable — WhatsApp client is not in the 'ready' state.\nShared across controllers so tsoa sees exactly one model definition.",
-				"properties": {
-					"error": {
-						"type": "string"
-					},
-					"retryAfterSeconds": {
-						"type": "number",
-						"format": "double",
-						"description": "Seconds until the client is expected to be ready (503 responses only)"
-					}
-				},
-				"required": [
-					"error",
-					"retryAfterSeconds"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -467,11 +484,16 @@
 							"$ref": "#/components/schemas/ChatItem"
 						},
 						"type": "array"
+					},
+					"hasMore": {
+						"type": "boolean",
+						"description": "True when more chats exist beyond the current page"
 					}
 				},
 				"required": [
 					"count",
-					"chats"
+					"chats",
+					"hasMore"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -509,6 +531,14 @@
 						"type": "string",
 						"nullable": true,
 						"description": "Present for group messages; null otherwise"
+					},
+					"mimeType": {
+						"type": "string",
+						"description": "MIME type of attached media — only present when hasMedia is true"
+					},
+					"filename": {
+						"type": "string",
+						"description": "Original filename of attached media — only present when hasMedia is true"
 					}
 				},
 				"required": [
@@ -539,12 +569,17 @@
 							"$ref": "#/components/schemas/MessageItem"
 						},
 						"type": "array"
+					},
+					"hasMore": {
+						"type": "boolean",
+						"description": "True when more messages exist beyond the current page"
 					}
 				},
 				"required": [
 					"chatId",
 					"count",
-					"messages"
+					"messages",
+					"hasMore"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -556,13 +591,18 @@
 				"in": "header",
 				"name": "X-Api-Token",
 				"description": "API_TOKEN from .env — set in X-Api-Token request header"
+			},
+			"basicAuth": {
+				"type": "http",
+				"scheme": "basic",
+				"description": "BASIC_AUTH_USERNAME / BASIC_AUTH_PASSWORD from .env — standard HTTP Basic Auth"
 			}
 		}
 	},
 	"info": {
 		"title": "WhatsApp Neo API",
 		"version": "2.0.0",
-		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require a Bearer token:\n```\nAuthorization: Bearer <API_TOKEN>\n```",
+		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require either a Bearer token or Basic Auth:\n```\nX-Api-Token: <API_TOKEN>\nAuthorization: Basic <base64>\n```",
 		"contact": {}
 	},
 	"paths": {
@@ -589,6 +629,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": []
@@ -626,6 +669,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [
@@ -641,6 +687,72 @@
 								"png",
 								"json"
 							]
+						}
+					}
+				]
+			}
+		},
+		"/messages/{messageId}/media": {
+			"get": {
+				"operationId": "GetMedia",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"type": "string",
+											"format": "byte"
+										},
+										{}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ServiceUnavailableError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Download media attached to a message.\n\nReturns the raw binary media file with the correct `Content-Type` header.\nThe response is a binary stream (not JSON). Use the `mimeType` and `filename`\nfields from the parent message (returned by `GET /chats/{chatId}/messages`)\nto determine how to render the bubble before fetching the binary.\n\nReturns `404` if the message has no media, or `404` if the message is not found.",
+				"tags": [
+					"Messaging"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Serialised message ID (e.g. `true_16073041892@c.us_ABCDEF12345_out`)",
+						"in": "path",
+						"name": "messageId",
+						"required": true,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]
@@ -688,6 +800,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [],
@@ -745,6 +860,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [],
@@ -831,6 +949,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [
@@ -888,6 +1009,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [],
@@ -947,6 +1071,9 @@
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [
@@ -954,6 +1081,72 @@
 						"description": "Phone number in any format.",
 						"in": "query",
 						"name": "phone",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/contacts/{contactId}/avatar": {
+			"get": {
+				"operationId": "GetAvatar",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"type": "string",
+											"format": "byte"
+										},
+										{}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ServiceUnavailableError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get the profile picture (avatar) for a WhatsApp contact.\n\nProxies the profile picture from WhatsApp's CDN and returns the raw image\nbytes. Returns `404` if the contact has no profile picture set.\n\nThe frontend should call this endpoint lazily per visible row and fall back\nto showing coloured initials on `404` or network error.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "WhatsApp contact ID, e.g. `16073041892@c.us`",
+						"in": "path",
+						"name": "contactId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -987,13 +1180,16 @@
 						}
 					}
 				},
-				"description": "List all WhatsApp chats, ordered by most-recent activity.",
+				"description": "List all WhatsApp chats, ordered by most-recent activity (descending timestamp).\n\nPagination uses an offset-based approach — the backend sorts all chats by\ntimestamp descending first, then slices `limit` items starting at `offset`.\n`hasMore` is `true` when there are additional chats beyond the current page.",
 				"tags": [
 					"Chats"
 				],
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [
@@ -1004,6 +1200,17 @@
 						"required": false,
 						"schema": {
 							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Number of chats to skip (0-based, default 0)",
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"default": 0,
 							"format": "double",
 							"type": "number"
 						}
@@ -1036,13 +1243,16 @@
 						}
 					}
 				},
-				"description": "Fetch message history for a specific chat.\n\nUses a custom implementation that bypasses the SDK's getChatById() which\nhas serialization issues with certain chat types (LID-based contacts, etc.).",
+				"description": "Fetch message history for a specific chat.\n\nUses a custom implementation that bypasses the SDK's getChatById() which\nhas serialization issues with certain chat types (LID-based contacts, etc.).\n\nPagination uses a cursor-based approach — pass the `before` parameter with\nthe Unix-epoch timestamp of the oldest message currently displayed to get\nthe next page of older messages. `hasMore` is `true` when more older messages\nexist beyond the current page.",
 				"tags": [
 					"Chats"
 				],
 				"security": [
 					{
 						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
 					}
 				],
 				"parameters": [
@@ -1064,6 +1274,88 @@
 							"default": 50,
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"description": "Optional cursor — only return messages older than this Unix-epoch timestamp",
+						"in": "query",
+						"name": "before",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/chats/{chatId}/read": {
+			"post": {
+				"operationId": "MarkChatRead",
+				"responses": {
+					"200": {
+						"description": "Chat marked as read",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"ok": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"ok"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ServiceUnavailableError"
+								}
+							}
+						}
+					}
+				},
+				"description": "Mark all messages in a chat as read.\n\nSends a \"seen\" acknowledgement to WhatsApp for the given chat, clearing\nthe unread badge on the phone and the API.",
+				"tags": [
+					"Chats"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "WhatsApp chat ID, e.g. `16073041892@c.us` or `123456789@g.us`",
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]

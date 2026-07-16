@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Route, Tags, Security, Res, SuccessResponse, type TsoaResponse } from 'tsoa';
+import { Controller, Get, Post, Body, Path, Query, Route, Tags, Security, Res, SuccessResponse, type TsoaResponse } from 'tsoa';
 import { whatsAppService } from '../services/WhatsAppService';
 import type {
   ContactsResponse,
@@ -7,6 +7,7 @@ import type {
   SaveContactBody,
   SaveContactResponse,
   BadRequestError,
+  ErrorResponse,
   ServiceUnavailableError,
 } from '../types';
 
@@ -16,6 +17,7 @@ import type {
 @Route('contacts')
 @Tags('Contacts')
 @Security('bearerAuth')
+@Security('basicAuth')
 export class ContactsController extends Controller {
   /**
    * List all WhatsApp contacts saved on the connected account.
@@ -179,6 +181,66 @@ export class ContactsController extends Controller {
         phone: phone.replace(/\D/g, ''),
         firstName: firstName.trim(),
       };
+    } catch (outerErr: unknown) {
+      let classified: unknown = outerErr;
+      try {
+        await whatsAppService.handleOperationError(outerErr);
+      } catch (e) {
+        classified = e;
+      }
+      const typedErr = classified as { code?: string; message?: string; retryAfterSeconds?: number };
+      if (typedErr.code === 'WA_NOT_READY') {
+        const retry = typedErr.retryAfterSeconds ?? 10;
+        this.setHeader('Retry-After', String(retry));
+        return serviceUnavailable(503, {
+          error: typedErr.message ?? 'WhatsApp client not ready',
+          retryAfterSeconds: retry,
+        });
+      }
+      throw classified;
+    }
+  }
+
+  /**
+   * Get the profile picture (avatar) for a WhatsApp contact.
+   *
+   * Proxies the profile picture from WhatsApp's CDN and returns the raw image
+   * bytes. Returns `404` if the contact has no profile picture set.
+   *
+   * The frontend should call this endpoint lazily per visible row and fall back
+   * to showing coloured initials on `404` or network error.
+   *
+   * @param contactId WhatsApp contact ID, e.g. `16073041892@c.us`
+   */
+  @Get('{contactId}/avatar')
+  async getAvatar(
+    @Path() contactId: string,
+    @Res() notFound: TsoaResponse<404, ErrorResponse>,
+    @Res() serviceUnavailable: TsoaResponse<503, ServiceUnavailableError>,
+  ): Promise<Buffer | void> {
+    try {
+      const avatarUrl = await whatsAppService.getAvatar(contactId);
+
+      if (!avatarUrl) {
+        return notFound(404, { error: 'No profile picture set for this contact.' });
+      }
+
+      // Fetch the avatar image from WhatsApp's CDN and proxy it back
+      const response = await fetch(avatarUrl);
+      if (!response.ok) {
+        return notFound(404, { error: 'Failed to fetch profile picture.' });
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // Determine content type from the URL or response
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      this.setHeader('Content-Type', contentType);
+      this.setHeader('Content-Length', buffer.length);
+      // Cache for 1 hour — avatars rarely change mid-session
+      this.setHeader('Cache-Control', 'private, max-age=3600');
+      return buffer;
     } catch (outerErr: unknown) {
       let classified: unknown = outerErr;
       try {

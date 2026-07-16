@@ -61,6 +61,8 @@ export interface ChatItem {
 export interface ChatsResponse {
   count: number;
   chats: ChatItem[];
+  /** True when more chats exist beyond the current page */
+  hasMore: boolean;
 }
 
 // ── Messages ─────────────────────────────────────────────────────────────────
@@ -78,12 +80,18 @@ export interface MessageItem {
   hasMedia: boolean;
   /** Present for group messages; null otherwise */
   author: string | null;
+  /** MIME type of attached media — only present when hasMedia is true */
+  mimeType?: string;
+  /** Original filename of attached media — only present when hasMedia is true */
+  filename?: string;
 }
 
 export interface MessagesResponse {
   chatId: string;
   count: number;
   messages: MessageItem[];
+  /** True when more messages exist beyond the current page */
+  hasMore: boolean;
 }
 
 // ── Contacts ─────────────────────────────────────────────────────────────────

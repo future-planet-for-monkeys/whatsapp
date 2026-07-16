@@ -16,6 +16,7 @@ interface QrUnavailableError extends ErrorResponse {
 @Route('qr')
 @Tags('System')
 @Security('bearerAuth')
+@Security('basicAuth')
 export class QrController extends Controller {
   /**
    * Get the current WhatsApp QR code.

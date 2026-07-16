@@ -28,6 +28,7 @@ function normaliseChatId(raw: string): string {
 @Route('send')
 @Tags('Messaging')
 @Security('bearerAuth')
+@Security('basicAuth')
 export class MessagesController extends Controller {
   /**
    * Send a plain-text WhatsApp message.

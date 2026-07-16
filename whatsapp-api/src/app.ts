@@ -45,14 +45,52 @@ export function createApp(): express.Express {
     const format = (req.query.format as string | undefined) ?? 'png';
     if (format === 'json') return next(); // let tsoa handle JSON format
 
-    // Manual token check (mirrors tsoa's expressAuthentication).
-    // Uses the custom X-Api-Token header so it never conflicts with NPM Basic Auth.
+    // Manual auth check (mirrors tsoa's expressAuthentication for both schemes).
+    // Accepts either:
+    //   1. X-Api-Token: <API_TOKEN>
+    //   2. Authorization: Basic <base64(username:password)>
+    const authHeader = req.headers['authorization'];
     const token = req.headers['x-api-token'];
-    if (!token || typeof token !== 'string') {
-      return res.status(401).json({ error: 'Unauthorized — set X-Api-Token header.' });
+
+    const isBasicAuth =
+      typeof authHeader === 'string' &&
+      authHeader.startsWith('Basic ');
+
+    const isBearerAuth =
+      typeof token === 'string' && token !== '';
+
+    if (!isBasicAuth && !isBearerAuth) {
+      return res.status(401).json({
+        error: 'Unauthorized — supply X-Api-Token header or Authorization: Basic <base64>.',
+      });
     }
-    if (token !== config.API_TOKEN) {
-      return res.status(403).json({ error: 'Forbidden — invalid API token.' });
+
+    let authenticated = false;
+
+    if (isBearerAuth && token === config.API_TOKEN) {
+      authenticated = true;
+    }
+
+    if (!authenticated && isBasicAuth) {
+      const base64 = authHeader!.slice(6);
+      let decoded: string;
+      try {
+        decoded = Buffer.from(base64, 'base64').toString('utf-8');
+      } catch {
+        return res.status(401).json({ error: 'Unauthorized — invalid Base64 encoding.' });
+      }
+      const colonIdx = decoded.indexOf(':');
+      if (colonIdx !== -1) {
+        const username = decoded.slice(0, colonIdx);
+        const password = decoded.slice(colonIdx + 1);
+        if (username === config.BASIC_AUTH_USERNAME && password === config.BASIC_AUTH_PASSWORD) {
+          authenticated = true;
+        }
+      }
+    }
+
+    if (!authenticated) {
+      return res.status(403).json({ error: 'Forbidden — invalid credentials.' });
     }
 
     const qrDataURL = whatsAppService.qrDataURL;

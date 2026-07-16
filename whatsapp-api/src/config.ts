@@ -8,6 +8,12 @@ const envSchema = z.object({
   /** Bearer token required on every authenticated request. */
   API_TOKEN: z.string().min(8, 'API_TOKEN must be at least 8 characters'),
 
+  /** Username for HTTP Basic Auth (alternative to API_TOKEN). */
+  BASIC_AUTH_USERNAME: z.string().min(1, 'BASIC_AUTH_USERNAME is required').default('admin'),
+
+  /** Password for HTTP Basic Auth (alternative to API_TOKEN). */
+  BASIC_AUTH_PASSWORD: z.string().min(1, 'BASIC_AUTH_PASSWORD is required').default('whatsapp'),
+
   /** WebSocket URL of the remote Chromium CDP proxy. */
   CHROMIUM_CDP_URL: z
     .string()

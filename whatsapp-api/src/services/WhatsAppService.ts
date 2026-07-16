@@ -247,6 +247,11 @@ export class WhatsAppService {
         }
       }
       
+      // Sort by timestamp descending (most recent first)
+      results.sort(function(a: any, b: any) {
+        return (b.timestamp || 0) - (a.timestamp || 0);
+      });
+      
       return results;
     });
     
@@ -435,7 +440,7 @@ export class WhatsAppService {
    * @param chatId WhatsApp chat ID (e.g. "16073041892@c.us" or "123456789@g.us")
    * @param limit  Maximum number of messages to return (1–200, default 50)
    */
-  async getChatMessages(chatId: string, limit: number): Promise<any[]> {
+  async getChatMessages(chatId: string, limit: number, before?: number): Promise<{ messages: any[]; hasMore: boolean }> {
     const client = this.assertReady();
     const page = client.pupPage;
     
@@ -447,7 +452,7 @@ export class WhatsAppService {
     // The code runs in the browser context where __name() doesn't exist.
     // All type annotations must be removed from the callback body.
     const messages = await page.evaluate(async (args: unknown) => {
-      const a = args as { chatId: string; limit: number };
+      const a = args as { chatId: string; limit: number; before: number | undefined };
       const WAWebCollections = (globalThis as any).require('WAWebCollections');
       const WAFactory = (globalThis as any).require('WAWebWidFactory');
       const WAWebChatLoadMessages = (globalThis as any).require('WAWebChatLoadMessages');
@@ -482,6 +487,11 @@ export class WhatsAppService {
       // Filter out notification messages
       var filtered = msgs.filter(function(m: RawMessage) { return !m.isNotification; });
       
+      // If a 'before' cursor is provided, filter to messages strictly older
+      if (a.before !== undefined) {
+        filtered = filtered.filter(function(m: RawMessage) { return m.t < a.before!; });
+      }
+      
       // Sort earliest to latest
       filtered.sort(function(a: RawMessage, b: RawMessage) { return a.t > b.t ? 1 : -1; });
       
@@ -491,7 +501,12 @@ export class WhatsAppService {
           try {
             var loadedMessages = await WAWebChatLoadMessages.loadEarlierMsgs({ chat: chat });
             if (!loadedMessages || !loadedMessages.length) break;
-            filtered = loadedMessages.filter(function(m: RawMessage) { return !m.isNotification; }).concat(filtered);
+            // Filter out notifications and respect the 'before' cursor
+            loadedMessages = loadedMessages.filter(function(m: RawMessage) { return !m.isNotification; });
+            if (a.before !== undefined) {
+              loadedMessages = loadedMessages.filter(function(m: RawMessage) { return m.t < a.before!; });
+            }
+            filtered = loadedMessages.concat(filtered);
           } catch (e) {
             break;
           }
@@ -505,10 +520,13 @@ export class WhatsAppService {
       
       // Use the SDK's own message serializer for each message
       return filtered.map(function(m: RawMessage) { return (globalThis as any).WWebJS.getMessageModel(m); });
-    }, { chatId, limit });
+    }, { chatId, limit, before });
     
-    // Map to our API response format, extracting only safe properties
-    return (messages as MessageModel[]).map(function(m: MessageModel) {
+    // Determine if there are more messages beyond what we loaded.
+    // We check by seeing if there were any messages older than the oldest
+    // returned message that we didn't include.
+    let hasMore = false;
+    const mapped = (messages as MessageModel[]).map(function(m: MessageModel) {
       return {
         id: m.id?._serialized || m.id || '',
         from: m.from || '',
@@ -519,8 +537,133 @@ export class WhatsAppService {
         fromMe: !!m.fromMe,
         hasMedia: !!m.hasMedia,
         author: m.author ?? null,
+        mimeType: (m as any).mimeType || undefined,
+        filename: (m as any).filename || undefined,
       };
     });
+    
+    // If we got back exactly `limit` messages, there might be more
+    if (mapped.length >= limit) {
+      hasMore = true;
+    }
+    
+    return { messages: mapped, hasMore };
+  }
+
+  /**
+   * Mark a chat as read by sending a "seen" acknowledgement.
+   *
+   * Uses the same page.evaluate() pattern as getChatMessages() — finds the
+   * chat internally and calls the WhatsApp Web sendSeen action.
+   *
+   * @param chatId Normalised WhatsApp chat ID (e.g. "16073041892@c.us")
+   */
+  async markChatRead(chatId: string): Promise<void> {
+    const client = this.assertReady();
+    const page = client.pupPage;
+
+    if (!page) {
+      throw new Error('Puppeteer page not available');
+    }
+
+    await page.evaluate(async (args: unknown) => {
+      const a = args as { chatId: string };
+      const WAWebCollections = (globalThis as any).require('WAWebCollections');
+      const WAFactory = (globalThis as any).require('WAWebWidFactory');
+      const WAWebFindChatAction = (globalThis as any).require('WAWebFindChatAction');
+      const WAWebSendSeenAction = (globalThis as any).require('WAWebSendSeenAction');
+
+      const chatWid = WAFactory.createWid(a.chatId);
+      let chat = WAWebCollections.Chat.get(chatWid);
+      if (!chat) {
+        try {
+          const found = await WAWebFindChatAction.findOrCreateLatestChat(chatWid);
+          chat = found?.chat;
+        } catch (e) {
+          // fall through
+        }
+      }
+      if (!chat) {
+        throw new Error('Chat not found: ' + a.chatId);
+      }
+
+      await WAWebSendSeenAction.sendSeen(chat, false);
+    }, { chatId });
+  }
+
+  /**
+   * Download media attached to a message.
+   *
+   * Uses page.evaluate() to access the message's internal model and call
+   * its downloadMedia() equivalent, returning the binary data as a base64
+   * string along with the MIME type and filename.
+   *
+   * @param messageId Serialised message ID
+   * @returns Base64-encoded media data, MIME type, and filename, or null if no media
+   */
+  async downloadMedia(messageId: string): Promise<{ data: string; mimeType: string; filename: string } | null> {
+    const client = this.assertReady();
+    const page = client.pupPage;
+
+    if (!page) {
+      throw new Error('Puppeteer page not available');
+    }
+
+    const result = await page.evaluate(async (args: unknown) => {
+      const a = args as { messageId: string };
+      const WAWebCollections = (globalThis as any).require('WAWebCollections');
+
+      const msg = WAWebCollections.Msg.get(a.messageId);
+      if (!msg) {
+        throw new Error('Message not found: ' + a.messageId);
+      }
+
+      if (!msg.hasMedia) {
+        return null;
+      }
+
+      // Download the media — whatsapp-web.js stores the media data internally
+      var mediaData = await msg.downloadMedia();
+      if (!mediaData) {
+        return null;
+      }
+
+      // The mediaData object has: data (base64), mimetype, filename
+      return {
+        data: mediaData.data,
+        mimetype: mediaData.mimetype || 'application/octet-stream',
+        filename: mediaData.filename || 'download',
+      };
+    }, { messageId });
+
+    if (!result) return null;
+
+    return {
+      data: result.data,
+      mimeType: result.mimetype,
+      filename: result.filename,
+    };
+  }
+
+  /**
+   * Get the profile picture URL for a WhatsApp contact.
+   *
+   * Uses the SDK's built-in getProfilePicUrl() method which returns the URL
+   * of the contact's current WhatsApp profile picture.
+   *
+   * @param contactId WhatsApp contact ID (e.g. "16073041892@c.us")
+   * @returns The profile picture URL, or null if no picture is set
+   */
+  async getAvatar(contactId: string): Promise<string | null> {
+    const client = this.assertReady();
+
+    try {
+      const url = await client.getProfilePicUrl(contactId);
+      return url || null;
+    } catch (err) {
+      // getProfilePicUrl throws when no picture is set
+      return null;
+    }
   }
 
   /**

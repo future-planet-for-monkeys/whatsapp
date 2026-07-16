@@ -35,6 +35,7 @@ function normaliseChatId(raw: string): string {
 @Route('send-media')
 @Tags('Messaging')
 @Security('bearerAuth')
+@Security('basicAuth')
 export class MediaController extends Controller {
   /**
    * Send a media file to a WhatsApp contact or group.
