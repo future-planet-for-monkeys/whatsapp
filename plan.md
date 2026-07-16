@@ -211,6 +211,87 @@ whatsapp-pwa/
 6. **Chat view** — pagination + media rendering + mark-as-read + input
 7. **New chat flow**
 8. **Polish** — error boundaries, empty states, PWA icons, mobile QA
+9. **Containerization** — separate `whatsapp-pwa` container per Phase 4
+
+---
+
+## **PHASE 4 — CONTAINERIZATION (separate container — decided, good idea)**
+
+Running the PWA in its own container is the right call: it decouples release cadence (static frontend deploys are instant, no Puppeteer/Chromium risk), keeps the API image lean, and matches the multi-instance pattern already used by this repo ([`docker-compose.yml`](docker-compose.yml:1), [`MULTI_INSTANCE.md`](MULTI_INSTANCE.md:1)).
+
+### **4.1 Recommended approach — nginx static + reverse-proxy (not a bare static host)**
+
+Do **not** bake the API base URL into the Vite build at build time (`VITE_API_URL` gets frozen into the JS bundle, which breaks the per-instance/multi-port pattern this repo relies on — a rebuild would be needed for every instance/port combo). Instead:
+
+- Build the PWA as static files (`vite build` → `dist/`).
+- Serve `dist/` with `nginx:alpine` inside the new container.
+- Configure nginx to reverse-proxy `/api/*` (or the API's real paths) to `whatsapp-api:3000` over the internal Docker network — **same pattern already used by [`cdp-proxy`](cdp-proxy.conf:1)**.
+- The browser then only ever calls same-origin relative paths (e.g. `fetch('/api/chats')`) — **zero CORS configuration needed**, and zero build-time URL baking. Works identically across every `INSTANCE_NAME`/port combination without rebuilding the image.
+
+### **4.2 New Dockerfile — `whatsapp-pwa/Dockerfile`**
+
+```dockerfile
+# Build stage
+FROM node:20-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Serve stage
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+```
+
+### **4.3 New `whatsapp-pwa/nginx.conf`**
+
+```nginx
+server {
+    listen 80;
+
+    location /api/ {
+        proxy_pass http://whatsapp-api:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;  # SPA fallback for React Router
+    }
+}
+```
+
+### **4.4 New `docker-compose.yml` service**
+
+```yaml
+  whatsapp-pwa:
+    build:
+      context: ./whatsapp-pwa
+    image: whatsapp-neo-pwa:local
+    container_name: ${INSTANCE_NAME:-whatsapp-neo}-pwa
+    restart: unless-stopped
+    ports:
+      - "${PWA_PORT:-3033}:80"
+    depends_on:
+      - whatsapp-api
+    networks:
+      - whatsapp-internal   # to reach whatsapp-api:3000 for the nginx proxy_pass
+      - proxy               # to be reachable externally, same as the other services
+```
+
+Add `PWA_PORT=3033` to `.env.example` alongside the existing `NOVNC_PORT`/`API_PORT` convention, and document it in [`MULTI_INSTANCE.md`](MULTI_INSTANCE.md:1) next to the other per-instance ports.
+
+### **4.5 Axios client adjustment**
+
+Since nginx now proxies `/api/*` same-origin, [`src/api/client.ts`](whatsapp-pwa/src/api/client.ts:1) should use a relative `baseURL: '/api'` in production, with a Vite dev-server proxy (`vite.config.ts` → `server.proxy['/api']`) pointing at `http://localhost:3022` for local development without Docker. This means **one** Axios config works in both environments — no env-var URL juggling.
+
+### **4.6 Dev-mode note**
+
+For local development outside Docker, `npm run dev` (Vite dev server) + the `vite.config.ts` proxy above is sufficient — no need to containerize during active frontend development. The container is a production/deployment concern, matching how `whatsapp-api`'s Dockerfile already coexists with running it locally.
 
 ---
 
@@ -218,5 +299,5 @@ whatsapp-pwa/
 
 - **Media upload transport**: confirmed multipart (matches existing `/send-media`) — no ambiguity, no decision needed here.
 
-Everything else that was previously an open question (avatars, ack, pagination strategy) is now decided and reflected above. Ready to move to implementation.
+Everything else that was previously an open question (avatars, ack, pagination strategy, containerization) is now decided and reflected above. Ready to move to implementation.
 
