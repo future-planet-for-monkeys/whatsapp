@@ -23,9 +23,12 @@ export class WhatsAppClientWithCache extends Client {
     /** Latest QR code as a PNG data URL, or null if not available. */
     qrDataURL: string | null = null;
 
+    // ── Avatar cache ───────────────────────────────────────────────────────────
     private avatarCache: Map<string, { url: string | null; timestamp: number }> = new Map();
     private avatarCacheTTL: number = 5 * 60 * 1000; // 5 minutes
     private avatarResolveQueue: string[] = [];
+    /** IDs already queued (or currently resolving) — prevents duplicate enqueues from concurrent callers. */
+    private avatarQueuedSet: Set<string> = new Set();
     private isResolvingAvatars: boolean = false;
     private async resolveAvatarQueue(): Promise<void> {
         if (this.isResolvingAvatars) {
@@ -41,6 +44,10 @@ export class WhatsAppClientWithCache extends Client {
             } catch (error) {
                 console.error(`Failed to resolve avatar for contact ${contactId}:`, error);
                 this.avatarCache.set(contactId, { url: null, timestamp: Date.now() }); // Cache null to avoid repeated attempts
+            } finally {
+                // Only now that the cache holds a fresh entry (or null) is it safe
+                // to allow this contactId to be re-queued in the future.
+                this.avatarQueuedSet.delete(contactId);
             }
         }
         this.isResolvingAvatars = false;
@@ -50,6 +57,8 @@ export class WhatsAppClientWithCache extends Client {
     private contactInfoCache: Map<string, { lid: string | null; pn: string | null; name: string | null; timestamp: number }> = new Map();
     private contactInfoCacheTTL: number = 5 * 60 * 1000; // 5 minutes
     private contactInfoResolveQueue: string[] = [];
+    /** IDs already queued (or currently resolving) — prevents duplicate enqueues from concurrent callers. */
+    private contactInfoQueuedSet: Set<string> = new Set();
     private isResolvingContactInfo: boolean = false;
 
     /**
@@ -71,7 +80,10 @@ export class WhatsAppClientWithCache extends Client {
             } catch (error) {
                 console.error(`Failed to resolve lid/phone for batch:`, error);
                 // Cache nulls to avoid repeated failed attempts for the whole batch
-                batch.forEach(contactId => this.cacheNullContactInfo(contactId));
+                batch.forEach(contactId => {
+                    this.cacheNullContactInfo(contactId);
+                    this.contactInfoQueuedSet.delete(contactId);
+                });
                 continue;
             }
             // Resolve each contact individually so a single bad contact
@@ -83,6 +95,10 @@ export class WhatsAppClientWithCache extends Client {
                 } catch (error) {
                     console.error(`Failed to resolve contact info for ${contactId}:`, error);
                     this.cacheNullContactInfo(contactId);
+                } finally {
+                    // Only now that the cache holds a fresh entry (or null) is it safe
+                    // to allow this contactId to be re-queued in the future.
+                    this.contactInfoQueuedSet.delete(contactId);
                 }
             }
         }
@@ -130,8 +146,15 @@ export class WhatsAppClientWithCache extends Client {
             return this.fetchAndCacheAvatar(contactId);
         }
 
-        this.avatarResolveQueue.push(contactId);
-        this.resolveAvatarQueue(); // Start resolving in the background
+        // Skip enqueueing if this contactId is already queued/in-flight — avoids
+        // pushing dozens of duplicate entries when many concurrent callers
+        // (e.g. Promise.all over a page of messages from the same sender)
+        // all miss the cache before the first resolution completes.
+        if (!this.avatarQueuedSet.has(contactId)) {
+            this.avatarQueuedSet.add(contactId);
+            this.avatarResolveQueue.push(contactId);
+            this.resolveAvatarQueue(); // Start resolving in the background
+        }
         return { avatarUrl: null, state: "pending" };
     }
 
@@ -210,8 +233,14 @@ export class WhatsAppClientWithCache extends Client {
             return this.fetchAndCacheContactInfo(contactId);
         }
 
-        this.contactInfoResolveQueue.push(contactId);
-        this.resolveContactInfoQueue(); // Start resolving in the background
+        // Skip enqueueing if this contactId is already queued/in-flight — avoids
+        // pushing duplicate entries when many concurrent callers all miss the
+        // cache before the first resolution completes.
+        if (!this.contactInfoQueuedSet.has(contactId)) {
+            this.contactInfoQueuedSet.add(contactId);
+            this.contactInfoResolveQueue.push(contactId);
+            this.resolveContactInfoQueue(); // Start resolving in the background
+        }
         return { lid: null, pn: null, name: null, state: "pending" };
     }
 
