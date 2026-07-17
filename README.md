@@ -1,24 +1,25 @@
-ear# WhatsApp Neo API
+# WhatsApp Neo API
 
-A REST API for WhatsApp built on [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js) with a remote Chromium browser instance. Send and receive messages, manage chats and contacts, and attach webhooks — all via a clean HTTP API.
+A REST API for WhatsApp built on [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js) with a remote Chromium browser instance, plus a PWA front-end. One `docker compose up` starts all four services.
 
 ## Architecture
 
 ```
-┌──────────────┐     ┌─────────────┐     ┌───────────────┐
-│  whatsapp-   │◄───►│  cdp-proxy  │◄───►│  whatsapp-    │
-│  api         │     │  (nginx)    │     │  chromium     │
-│  (Express)   │     │  CDP tunnel │     │  (Chromium)   │
-└──────┬───────┘     └─────────────┘     └───────────────┘
-       │
-       ├──► Swagger UI at /docs
-       ├──► Webhook POST on incoming messages
-       └──► Docker volume for session persistence
+┌──────────────┐     ┌──────────────┐     ┌─────────────┐     ┌───────────────┐
+│  whatsapp-   │────►│  whatsapp-   │◄───►│  cdp-proxy  │◄───►│  whatsapp-    │
+│  pwa (nginx) │     │  api         │     │  (nginx)    │     │  chromium     │
+│  React SPA   │     │  (Express)   │     │  CDP tunnel │     │  (Chromium)   │
+└──────────────┘     └──────┬───────┘     └─────────────┘     └───────────────┘
+                             │
+                             ├──► Swagger UI at /docs
+                             ├──► Webhook POST on incoming messages
+                             └──► Docker volume for session persistence
 ```
 
-- **[`whatsapp-chromium`](whatsapp-api/Dockerfile)** — A headless Chromium browser with a noVNC web interface so you can visually scan the QR code.
+- **[`whatsapp-chromium`](chromium-vnc/Dockerfile)** — A headless Chromium browser with a noVNC web interface so you can visually scan the QR code.
 - **[`cdp-proxy`](cdp-proxy.conf)** — An nginx sidecar that proxies Chrome DevTools Protocol, bypassing Chrome's DNS-rebinding protection.
-- **[`whatsapp-api`](docker-compose.yml)** — Express + tsoa REST API that drives [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js) inside the remote Chromium.
+- **[`whatsapp-api`](whatsapp-api/Dockerfile)** — Express + tsoa REST API that drives [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js) inside the remote Chromium.
+- **[`whatsapp-pwa`](whatsapp-pwa/Dockerfile)** — React/Vite Progressive Web App, built and served by nginx, which reverse-proxies `/single/*` to `whatsapp-api` so the browser only ever talks to one origin.
 
 ## Prerequisites
 
@@ -60,13 +61,16 @@ API_TOKEN=your-secret-token-here
 docker-compose up -d
 ```
 
-This starts three containers:
+This single command builds and starts four containers:
 
 | Container | Purpose | Access |
 |---|---|---|
 | `whatsapp-neo2-chromium` | Headless Chromium + noVNC | `http://localhost:3008` |
 | `whatsapp-neo2-cdp-proxy` | CDP WebSocket proxy | Internal only |
 | `whatsapp-neo2-api` | REST API + Swagger UI | `http://localhost:3022` |
+| `whatsapp-neo2-pwa` | PWA front-end (nginx) | `http://localhost:3009` |
+
+The PWA container waits for `whatsapp-api`'s healthcheck to pass before starting, and Chromium/cdp-proxy are wired up first — so a single `docker-compose up -d` brings the whole stack up in the right order with no manual steps.
 
 ### 3. Check the health endpoint
 
@@ -527,11 +531,14 @@ All configuration is via environment variables in [`.env`](.env.example).
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `API_TOKEN` | ✅ | — | Bearer token for API authentication (min 8 chars) |
+| `API_TOKEN` | ✅ | — | Bearer token for API authentication (min 8 chars), sent as `X-Api-Token` |
+| `BASIC_AUTH_USERNAME` | ❌ | `admin` | Basic Auth username used by the PWA against `/single/*` |
+| `BASIC_AUTH_PASSWORD` | ❌ | `whatsapp` | Basic Auth password used by the PWA against `/single/*` |
 | `INSTANCE_NAME` | ❌ | `whatsapp-neo2` | Unique name for Docker volumes and container names |
 | `NOVNC_PORT` | ❌ | `3008` | Host port for the noVNC browser UI |
 | `API_PORT` | ❌ | `3022` | Host port for the REST API |
-| `CHROMIUM_CDP_URL` | ❌ | `ws://whatsapp-neo-chromium:9223` | WebSocket URL of the Chromium CDP proxy |
+| `PWA_PORT` | ❌ | `3009` | Host port for the PWA front-end |
+| `CHROMIUM_CDP_URL` | ❌ | `ws://whatsapp-chromium:9223` | WebSocket URL of the Chromium CDP proxy (compose service name) |
 | `WEBHOOK_URL` | ❌ | — | HTTP endpoint that receives incoming message POSTs |
 | `SESSION_DATA_PATH` | ❌ | `/app/.wwebjs_auth` | Directory for WhatsApp session persistence |
 
@@ -541,10 +548,10 @@ See [`MULTI_INSTANCE.md`](MULTI_INSTANCE.md) for detailed instructions on runnin
 
 ```bash
 # Instance 1
-INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 docker-compose up -d
+INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-compose up -d
 
 # Instance 2
-INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3009 API_PORT=3023 docker-compose up -d
+INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3010 API_PORT=3023 PWA_PORT=3011 docker-compose up -d
 ```
 
 Each instance gets its own:
@@ -571,34 +578,41 @@ npm run dev
 ```
 whatsapp-api/
 ├── src/
-│   ├── controllers/       # tsoa route controllers
-│   │   ├── ChatsController.ts
-│   │   ├── ContactsController.ts
-│   │   ├── HealthController.ts
-│   │   ├── MediaController.ts
-│   │   ├── MessagesController.ts
-│   │   ├── QrController.ts
-│   │   └── StatusController.ts
+│   ├── controllers/       # tsoa route controllers (SingleController, etc.)
 │   ├── generated/         # Auto-generated by tsoa (routes + swagger.json)
 │   ├── middleware/
-│   │   └── auth.ts        # X-Api-Token authentication module
+│   │   └── auth.ts        # X-Api-Token / Basic Auth authentication module
 │   ├── services/
-│   │   └── WhatsAppService.ts   # WhatsApp client lifecycle + webhook dispatch
-│   ├── types/
-│   │   └── index.ts       # Shared TypeScript types / OpenAPI schemas
+│   │   └── WhatsAppService.v2.ts   # WhatsApp client lifecycle + webhook dispatch
 │   ├── app.ts             # Express app factory
 │   ├── config.ts          # Environment config validation (zod)
 │   └── server.ts          # Entry point
 ├── tsoa.json              # tsoa code-gen configuration
 ├── Dockerfile
 └── package.json
+
+whatsapp-pwa/
+├── src/
+│   ├── api/               # Axios client + React Query hooks + DTO mirrors
+│   ├── components/        # Chat UI + shared components
+│   ├── pages/              # Route-level pages (Login, Chats, Chat, Pair, NewChat)
+│   ├── store/              # Zustand auth store
+│   └── App.tsx
+├── nginx.conf              # Serves the build + proxies /single to whatsapp-api
+├── Dockerfile               # Multi-stage: vite build → nginx runtime
+└── package.json
 ```
 
 ## Docker Commands
 
 ```bash
-# View logs
+# View logs for a single service
 docker-compose logs -f whatsapp-api
+docker-compose logs -f whatsapp-pwa
+
+# Rebuild a single service after code changes (PWA image bakes in the build,
+# so it must be rebuilt — whatsapp-api hot-reloads via the bind mount)
+docker-compose up -d --build whatsapp-pwa
 
 # Restart the API only
 docker-compose restart whatsapp-api

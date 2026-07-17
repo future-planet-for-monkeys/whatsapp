@@ -20,5 +20,16 @@
     "icon":             "chromium",
     "color":            "blue",
     "docker_container": "whatsapp-neo2-chromium"
+  },
+  {
+    "id":               "whatsapp-neo2-pwa",
+    "name":             "WhatsApp Neo2 PWA",
+    "description":      "Second instance — Progressive Web App front-end for chatting through the WhatsApp Neo2 API stack.",
+    "category":         "Tools",
+    "port":             3009,
+    "scheme":           "http",
+    "icon":             "whatsapp",
+    "color":            "green",
+    "docker_container": "whatsapp-neo2-pwa"
   }
 ]

@@ -62,6 +62,24 @@ services:
       - whatsapp-internal
       - proxy
 
+  # Static PWA front-end (React/Vite build served by nginx). Nginx proxies
+  # every "/single" request to whatsapp-api on the internal network, so the
+  # browser only ever talks to one origin — no CORS configuration needed.
+  whatsapp-pwa:
+    build:
+      context: ./whatsapp-pwa
+    image: whatsapp-neo-pwa:local
+    container_name: ${INSTANCE_NAME:-whatsapp-neo}-pwa
+    restart: unless-stopped
+    ports:
+      - "${PWA_PORT:-3009}:80"
+    depends_on:
+      whatsapp-api:
+        condition: service_healthy
+    networks:
+      - whatsapp-internal
+      - proxy
+
 volumes:
   session:
     name: ${INSTANCE_NAME:-whatsapp-neo}_session

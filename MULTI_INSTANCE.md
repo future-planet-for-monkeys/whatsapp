@@ -9,6 +9,7 @@ The configuration uses environment variables to make volume names, container nam
 - **`INSTANCE_NAME`**: Unique identifier for each instance (default: `whatsapp-neo2`)
 - **`NOVNC_PORT`**: Port for noVNC web interface (default: `3008`)
 - **`API_PORT`**: Port for WhatsApp API (default: `3022`)
+- **`PWA_PORT`**: Port for the PWA front-end (default: `3009`)
 
 Each instance gets its own:
 - Docker volumes for session persistence
@@ -19,11 +20,11 @@ Each instance gets its own:
 ## Running a Single Instance
 
 ```bash
-# Use default configuration
+# Use default configuration — brings up chromium, cdp-proxy, api, and pwa
 docker-compose up -d
 
 # Or specify custom values
-INSTANCE_NAME=my-whatsapp NOVNC_PORT=3008 API_PORT=3022 docker-compose up -d
+INSTANCE_NAME=my-whatsapp NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-compose up -d
 ```
 
 ## Running Multiple Instances
@@ -32,13 +33,13 @@ INSTANCE_NAME=my-whatsapp NOVNC_PORT=3008 API_PORT=3022 docker-compose up -d
 
 ```bash
 # Instance 1
-INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 docker-compose up -d
+INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-compose up -d
 
 # Instance 2
-INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3009 API_PORT=3023 docker-compose up -d
+INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3010 API_PORT=3023 PWA_PORT=3011 docker-compose up -d
 
 # Instance 3
-INSTANCE_NAME=whatsapp-client3 NOVNC_PORT=3010 API_PORT=3024 docker-compose up -d
+INSTANCE_NAME=whatsapp-client3 NOVNC_PORT=3012 API_PORT=3024 PWA_PORT=3013 docker-compose up -d
 ```
 
 ### Method 2: Using Separate .env Files
@@ -50,13 +51,15 @@ Create separate environment files for each instance:
 INSTANCE_NAME=whatsapp-client1
 NOVNC_PORT=3008
 API_PORT=3022
+PWA_PORT=3009
 ```
 
 **`.env.instance2`**:
 ```env
 INSTANCE_NAME=whatsapp-client2
-NOVNC_PORT=3009
+NOVNC_PORT=3010
 API_PORT=3023
+PWA_PORT=3011
 ```
 
 Then start each instance:
@@ -121,11 +124,12 @@ Each instance will be accessible on its configured ports:
 
 - **noVNC Interface**: `http://localhost:${NOVNC_PORT}`
 - **API Endpoint**: `http://localhost:${API_PORT}`
+- **PWA Front-end**: `http://localhost:${PWA_PORT}`
 
 Example for 3 instances:
-- Instance 1: noVNC at `http://localhost:3008`, API at `http://localhost:3022`
-- Instance 2: noVNC at `http://localhost:3009`, API at `http://localhost:3023`
-- Instance 3: noVNC at `http://localhost:3010`, API at `http://localhost:3024`
+- Instance 1: noVNC at `http://localhost:3008`, API at `http://localhost:3022`, PWA at `http://localhost:3009`
+- Instance 2: noVNC at `http://localhost:3010`, API at `http://localhost:3023`, PWA at `http://localhost:3011`
+- Instance 3: noVNC at `http://localhost:3012`, API at `http://localhost:3024`, PWA at `http://localhost:3013`
 
 ## Important Notes
 
