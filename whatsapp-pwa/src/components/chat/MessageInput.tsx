@@ -4,14 +4,16 @@ interface MessageInputProps {
   onSendText: (text: string) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
   disabled?: boolean;
+  initialValue?: string;
 }
 
 export default function MessageInput({
   onSendText,
   onSendFile,
   disabled = false,
+  initialValue = '',
 }: MessageInputProps): React.ReactElement {
-  const [text, setText] = useState<string>('');
+  const [text, setText] = useState<string>(initialValue);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -27,6 +29,12 @@ export default function MessageInput({
   useEffect(() => {
     adjustHeight();
   }, [text]);
+
+  useEffect(() => {
+    if (initialValue) {
+      setText(initialValue);
+    }
+  }, [initialValue]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setText(e.target.value);
@@ -153,7 +161,7 @@ export default function MessageInput({
           {isSending ? (
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
-            <svg className="w-5 h-5 transform rotate-90" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
             </svg>
           )}

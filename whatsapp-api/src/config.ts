@@ -37,6 +37,9 @@ const envSchema = z.object({
    *  (which is /app inside the Docker container). */
   SESSION_DATA_PATH: z.string().default('./.wwebjs_auth'),
 
+  /** Directory where avatars are cached locally. */
+  AVATAR_CACHE_PATH: z.string().default('./avatar_cache'),
+
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   TZ: z.string().default('UTC'),
 });

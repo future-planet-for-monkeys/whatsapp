@@ -1,6 +1,9 @@
 import { Client, ClientOptions, Message } from "whatsapp-web.js";
 import { ClientOptionFactory } from "./ClientOptionFactory";
 import QRCode from "qrcode";
+import fs from "node:fs";
+import path from "node:path";
+import { config } from "../config";
 
 interface ServiceOptions {
     cdpUrl: string;
@@ -107,8 +110,21 @@ export class WhatsAppClientWithCache extends Client {
 
     constructor(options: ClientOptions) {
         super(options);
-        // Idea, pup page evaluate queue / threads to execute comands on the 
-        // client without overwhelming the pup page with too many concurrent requests.
+        // Ensure avatar cache directory exists
+        try {
+            fs.mkdirSync(config.AVATAR_CACHE_PATH, { recursive: true });
+        } catch (err) {
+            console.error(`Failed to create avatar cache directory:`, err);
+        }
+    }
+
+    getLocalAvatarPath(contactId: string): string {
+        return path.join(config.AVATAR_CACHE_PATH, `${encodeURIComponent(contactId)}.jpg`);
+    }
+
+    hasLocalAvatar(contactId: string): boolean {
+        const filePath = this.getLocalAvatarPath(contactId);
+        return fs.existsSync(filePath);
     }
 
     /** Return fresh cached avatar URL, or null if missing/stale. */
@@ -138,6 +154,9 @@ export class WhatsAppClientWithCache extends Client {
 
     async resolveAvatar(contactId: string, resolveImmediately = false, bustCache = false): Promise<AvatarResolutionResult> {
         if (!bustCache) {
+            if (this.hasLocalAvatar(contactId)) {
+                return { avatarUrl: 'local', state: "resolved" };
+            }
             const cached = this.getCachedAvatar(contactId);
             if (cached) return cached;
         }

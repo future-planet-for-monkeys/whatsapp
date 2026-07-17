@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Phone, MessageSquare, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -10,6 +10,10 @@ import { CheckResponse } from '../api/types';
 
 export default function NewChatPage(): React.ReactElement {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const phoneParam = searchParams.get('phone');
+  const messageParam = searchParams.get('message');
+
   const [phoneInput, setPhoneInput] = useState('');
   const [checkResult, setCheckResult] = useState<CheckResponse | null>(null);
 
@@ -97,9 +101,54 @@ export default function NewChatPage(): React.ReactElement {
 
   const handleOpenChat = (): void => {
     if (checkResult?.whatsappId) {
-      navigate(`/chat/${encodeURIComponent(checkResult.whatsappId)}`);
+      const messageQuery = messageParam ? `?message=${encodeURIComponent(messageParam)}` : '';
+      navigate(`/chat/${encodeURIComponent(checkResult.whatsappId)}${messageQuery}`);
     }
   };
+
+  useEffect(() => {
+    if (phoneParam) {
+      const formatted = formatPhone(phoneParam);
+      setPhoneInput(formatted);
+
+      const digits = phoneParam.replace(/\D/g, '');
+      if (!digits) {
+        toast.error('Invalid phone number in URL');
+        return;
+      }
+      const phoneToSend = phoneParam.startsWith('+') ? `+${digits}` : digits;
+
+      checkPhoneMutation.mutate(phoneToSend, {
+        onSuccess: (data) => {
+          if (data.registered) {
+            setCheckResult(data);
+            if (data.whatsappId) {
+              const messageQuery = messageParam ? `?message=${encodeURIComponent(messageParam)}` : '';
+              navigate(`/chat/${encodeURIComponent(data.whatsappId)}${messageQuery}`);
+            }
+          } else {
+            toast.error('This number is not on WhatsApp');
+            setCheckResult(null);
+          }
+        },
+        onError: (err: any) => {
+          setCheckResult(null);
+          if (axios.isAxiosError(err)) {
+            if (err.response?.status === 503) {
+              const data = err.response.data as { error?: string; retryAfterSeconds?: number };
+              const retryAfter = data.retryAfterSeconds ?? 10;
+              toast.error(`WhatsApp is not ready — try again in ${retryAfter}s`);
+              return;
+            }
+            const errMsg = (err.response?.data as any)?.error || err.message;
+            toast.error(errMsg);
+          } else {
+            toast.error(err.message || 'An unexpected error occurred');
+          }
+        },
+      });
+    }
+  }, [phoneParam, messageParam]);
 
   return (
     <div className="flex flex-col min-h-screen bg-whatsapp-bg">

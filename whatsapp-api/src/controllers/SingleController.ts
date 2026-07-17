@@ -3,6 +3,7 @@ import { type Chat, ChatId, Client, Message, MessageId, MessageMedia, MessageTyp
 import { CLIENT } from "../client";
 import { WhatsAppClientWithCache } from "../services/WhatsAppService.v2";
 import type { Request as ExpressRequest } from "express";
+import fs from "node:fs";
 
 // ── 0.8: Widen the union to match real-world WhatsApp types ────────────────
 export type AllowedMessageTypes =
@@ -360,6 +361,22 @@ export class SingleController extends Controller {
         @Res() badGatewayResponse: TsoaResponse<502, { message: string }>,
     ): Promise<void> {
         const client = await this.client;
+
+        // Check local cache first
+        if (client.hasLocalAvatar(contactId)) {
+            const filePath = client.getLocalAvatarPath(contactId);
+            try {
+                const data = await fs.promises.readFile(filePath);
+                const res = req.res!;
+                res.setHeader('Content-Type', 'image/jpeg');
+                res.setHeader('Cache-Control', 'private, max-age=31536000');
+                res.end(data);
+                return;
+            } catch (err) {
+                console.error(`Failed to read local avatar for ${contactId}:`, err);
+            }
+        }
+
         const avatarResult = await client.resolveAvatar(contactId);
         if (!avatarResult?.avatarUrl) {
             return notFoundResponse(404, { message: 'Avatar not found' });
@@ -379,13 +396,22 @@ export class SingleController extends Controller {
 
         const contentType = upstream.headers.get('content-type') || 'image/jpeg';
         const arrayBuffer = await upstream.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Save to local cache
+        try {
+            const filePath = client.getLocalAvatarPath(contactId);
+            await fs.promises.writeFile(filePath, buffer);
+        } catch (err) {
+            console.error(`Failed to save local avatar for ${contactId}:`, err);
+        }
 
         const res = req.res!;
         res.setHeader('Content-Type', contentType);
         // No Content-Disposition here — this must always render inline as an
         // image, never trigger a download or be mislabeled as an .enc file.
         res.setHeader('Cache-Control', 'private, max-age=300');
-        res.end(Buffer.from(arrayBuffer));
+        res.end(buffer);
     }
 
     @Post('contacts/info')

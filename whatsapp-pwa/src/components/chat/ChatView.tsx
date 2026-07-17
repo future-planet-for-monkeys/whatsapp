@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useChat, useChatMessages, useMarkAsRead, useSendText, useSendMedia } from '../../api/queries';
 import { MessageDto } from '../../api/types';
 import { formatMessageDateSeparator } from '../../utils/formatters';
@@ -14,12 +15,15 @@ interface ChatViewProps {
 }
 
 export default function ChatView({ chatId, onBack }: ChatViewProps): React.ReactElement {
+  const [searchParams] = useSearchParams();
+  const initialMessage = searchParams.get('message') || '';
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxOffset, setMaxOffset] = useState<number>(0);
   const [optimisticMessages, setOptimisticMessages] = useState<MessageDto[]>([]);
   const [isLoadingOlder, setIsLoadingOlder] = useState<boolean>(false);
   const [prevScrollHeight, setPrevScrollHeight] = useState<number>(0);
   const [hasInitialScrolled, setHasInitialScrolled] = useState<boolean>(false);
+  const lastMessageRef = useRef<HTMLDivElement>(null);
 
   // Fetch chat details
   const { data: chat, isLoading: isChatLoading, error: chatError } = useChat(chatId);
@@ -84,11 +88,16 @@ export default function ChatView({ chatId, onBack }: ChatViewProps): React.React
 
   // Scroll to bottom on initial load
   useEffect(() => {
-    if (page0.data && page0.data.length > 0 && !hasInitialScrolled) {
-      scrollToBottom('auto');
+    if (combinedMessages.length > 0 && !hasInitialScrolled) {
+      // Defer scroll to ensure DOM is fully updated and painted
+      const timer = setTimeout(() => {
+        scrollToBottom('auto');
+        lastMessageRef.current?.focus();
+      }, 100);
       setHasInitialScrolled(true);
+      return () => clearTimeout(timer);
     }
-  }, [page0.data, hasInitialScrolled]);
+  }, [combinedMessages, hasInitialScrolled]);
 
   // Scroll to bottom when we send a message
   useEffect(() => {
@@ -330,14 +339,22 @@ export default function ChatView({ chatId, onBack }: ChatViewProps): React.React
               }
             }
 
+            const isLast = index === combinedMessages.length - 1;
+
             return (
-              <MessageBubble
+              <div
                 key={message.id._serialized}
-                message={message}
-                isGroup={chat.isGroup}
-                showDateSeparator={showDateSeparator}
-                dateSeparatorText={dateSeparatorText}
-              />
+                ref={isLast ? lastMessageRef : undefined}
+                tabIndex={isLast ? -1 : undefined}
+                className="outline-none"
+              >
+                <MessageBubble
+                  message={message}
+                  isGroup={chat.isGroup}
+                  showDateSeparator={showDateSeparator}
+                  dateSeparatorText={dateSeparatorText}
+                />
+              </div>
             );
           })
         )}
@@ -348,6 +365,7 @@ export default function ChatView({ chatId, onBack }: ChatViewProps): React.React
         onSendText={handleSendText}
         onSendFile={handleSendFile}
         disabled={sendTextMutation.isPending || sendMediaMutation.isPending}
+        initialValue={initialMessage}
       />
     </div>
   );
