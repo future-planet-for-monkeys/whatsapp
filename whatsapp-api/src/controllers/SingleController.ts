@@ -43,6 +43,7 @@ export interface ChatDto {
     id: ChatIdDto;
     isGroup: boolean;
     name: string;
+    chatAvatarUrl: string | null;
     unreadCount: number;
     lastMessage: MessageDto | null;
     pinned: boolean;
@@ -75,11 +76,13 @@ export interface ContactInfoDto {
 }
 
 async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImmediately = false): Promise<ChatDto> {
+    const avatarUrl = await client.resolveAvatar(chat.id._serialized, resolveImmediately);
     return {
         archived: chat.archived,
         id: new ChatIdDto(chat.id),
         isGroup: chat.isGroup,
         name: chat.name,
+        chatAvatarUrl: avatarUrl?.avatarUrl || null,
         unreadCount: chat.unreadCount,
         lastMessage: chat.lastMessage ? await toMessageDto(client, chat.lastMessage, resolveImmediately) : null,
         pinned: chat.pinned,
