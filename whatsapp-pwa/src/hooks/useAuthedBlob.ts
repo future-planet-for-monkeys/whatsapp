@@ -3,18 +3,21 @@ import { client } from '../api/client';
 
 export interface UseAuthedBlobResult {
   objectUrl: string | null;
+  filename: string | null;
   isLoading: boolean;
   error: Error | null;
 }
 
 export function useAuthedBlob(url: string | null): UseAuthedBlobResult {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [filename, setFilename] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!url) {
       setObjectUrl(null);
+      setFilename(null);
       setIsLoading(false);
       setError(null);
       return;
@@ -36,7 +39,19 @@ export function useAuthedBlob(url: string | null): UseAuthedBlobResult {
 
         if (active) {
           createdUrl = URL.createObjectURL(response.data);
+          
+          // Extract filename from Content-Disposition header
+          let extractedFilename: string | null = null;
+          const disposition = response.headers['content-disposition'] as string | undefined;
+          if (disposition && disposition.includes('filename=')) {
+            const match = disposition.match(/filename="?([^"]+)"?/);
+            if (match && match[1]) {
+              extractedFilename = match[1];
+            }
+          }
+
           setObjectUrl(createdUrl);
+          setFilename(extractedFilename);
           setIsLoading(false);
         }
       } catch (err: unknown) {
@@ -62,5 +77,5 @@ export function useAuthedBlob(url: string | null): UseAuthedBlobResult {
     };
   }, [url]);
 
-  return { objectUrl, isLoading, error };
+  return { objectUrl, filename, isLoading, error };
 }

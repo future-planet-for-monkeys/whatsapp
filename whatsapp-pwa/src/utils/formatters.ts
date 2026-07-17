@@ -1,5 +1,26 @@
-import { isToday, isThisWeek, format } from 'date-fns';
+import { isToday, isYesterday, isThisWeek, format } from 'date-fns';
 import { MessageDto } from '../api/types';
+
+/**
+ * Formats a UNIX timestamp (in seconds) into a date separator string:
+ * - Today: "Today"
+ * - Yesterday: "Yesterday"
+ * - This week: Weekday name (e.g., Monday)
+ * - Older: dd MMMM yyyy (e.g., 17 July 2026)
+ */
+export function formatMessageDateSeparator(timestampSeconds: number): string {
+  const date = new Date(timestampSeconds * 1000);
+  if (isToday(date)) {
+    return 'Today';
+  }
+  if (isYesterday(date)) {
+    return 'Yesterday';
+  }
+  if (isThisWeek(date, { weekStartsOn: 1 })) {
+    return format(date, 'eeee');
+  }
+  return format(date, 'dd MMMM yyyy');
+}
 
 /**
  * Formats a UNIX timestamp (in seconds) into a relative string:

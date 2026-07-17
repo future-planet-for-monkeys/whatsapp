@@ -1,6 +1,77 @@
-import { useQuery, useInfiniteQuery, UseQueryResult, UseInfiniteQueryResult, InfiniteData } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, UseQueryResult, UseInfiniteQueryResult, UseMutationResult, InfiniteData } from '@tanstack/react-query';
 import { client } from './client';
-import { ClientStateResponse, ChatDto } from './types';
+import { ClientStateResponse, ChatDto, MessageDto } from './types';
+
+export function useChat(
+  id: string,
+  options?: { enabled?: boolean }
+): UseQueryResult<ChatDto, Error> {
+  return useQuery<ChatDto, Error>({
+    queryKey: ['chat', id],
+    queryFn: async (): Promise<ChatDto> => {
+      const response = await client.get<ChatDto>(`/chats/${id}`);
+      return response.data;
+    },
+    enabled: !!id && options?.enabled !== false,
+  });
+}
+
+export function useChatMessages(
+  id: string,
+  offset: number,
+  options?: { enabled?: boolean; refetchInterval?: number | false }
+): UseQueryResult<MessageDto[], Error> {
+  return useQuery<MessageDto[], Error>({
+    queryKey: ['messages', id, offset],
+    queryFn: async (): Promise<MessageDto[]> => {
+      const response = await client.get<MessageDto[]>(`/chats/${id}/messages?limit=50&offset=${offset}`);
+      return response.data;
+    },
+    enabled: !!id && options?.enabled !== false,
+    refetchInterval: options?.refetchInterval,
+    staleTime: offset > 0 ? Infinity : undefined, // older pages are static
+  });
+}
+
+export function useMarkAsRead(): UseMutationResult<{ success: boolean }, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation<{ success: boolean }, Error, string>({
+    mutationFn: async (id: string): Promise<{ success: boolean }> => {
+      const response = await client.post<{ success: boolean }>(`/chats/${id}/read`);
+      return response.data;
+    },
+    onSuccess: (_, id) => {
+      // Invalidate chats list to clear unread badge
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+      // Also invalidate the specific chat query
+      queryClient.invalidateQueries({ queryKey: ['chat', id] });
+    },
+  });
+}
+
+export function useSendText(): UseMutationResult<MessageDto, Error, { chatId: string; message: string }> {
+  return useMutation<MessageDto, Error, { chatId: string; message: string }>({
+    mutationFn: async ({ chatId, message }): Promise<MessageDto> => {
+      const response = await client.post<MessageDto>('/messages/send-text', { chatId, message });
+      return response.data;
+    },
+  });
+}
+
+export function useSendMedia(): UseMutationResult<MessageDto, Error, { chatId: string; file: File }> {
+  return useMutation<MessageDto, Error, { chatId: string; file: File }>({
+    mutationFn: async ({ chatId, file }): Promise<MessageDto> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await client.post<MessageDto>(`/messages/${chatId}/send-media`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+  });
+}
 
 export function useClientState(options?: {
   enabled?: boolean;
