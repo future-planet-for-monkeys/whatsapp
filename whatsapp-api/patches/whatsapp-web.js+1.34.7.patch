@@ -1,5 +1,5 @@
 diff --git a/node_modules/whatsapp-web.js/src/util/Injected/Utils.js b/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
-index 540078a..bc81601 100644
+index 540078a..b482529 100644
 --- a/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
 +++ b/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
 @@ -582,7 +582,7 @@ exports.LoadUtils = () => {
@@ -158,3 +158,26 @@ index 540078a..bc81601 100644
                    )?.messages?.[0]
                  : null;
              lastMessage &&
+@@ -1024,9 +1077,19 @@ exports.LoadUtils = () => {
+ 
+         res.isBlocked = contact.isContactBlocked;
+         if (!res.isBlocked) {
+-            const alt = window
+-                .require('WAWebApiContact')
+-                .getAlternateUserWid(wid);
++            // `getAlternateUserWid` throws "Invalid get call using deviceWid" when `wid`
++            // is a device-specific wid (e.g. `<number>:<device>@c.us`) rather than a plain
++            // user wid. This happens for some group participants / linked-device contacts.
++            // Treat it as "no alternate wid" rather than letting it blow up contact
++            // serialization entirely.
++            let alt;
++            try {
++                alt = window
++                    .require('WAWebApiContact')
++                    .getAlternateUserWid(wid);
++            } catch {
++                alt = null;
++            }
+             if (alt) {
+                 res.isBlocked = !!window
+                     .require('WAWebCollections')

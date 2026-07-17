@@ -65,15 +65,25 @@ export class WhatsAppClientWithCache extends Client {
         while (this.contactInfoResolveQueue.length > 0) {
             // Take up to 50 IDs at once to avoid overly large batch calls
             const batch = this.contactInfoResolveQueue.splice(0, 50);
+            let results: ({ lid?: string; pn?: string } | undefined)[] = [];
             try {
-                const results = await this.getContactLidAndPhone(batch);
-                for (const [i, contactId] of batch.entries()) {
-                    await this.fetchAndCacheSingleContactInfo(contactId, results[i]);
-                }
+                results = await this.getContactLidAndPhone(batch);
             } catch (error) {
-                console.error(`Failed to resolve contact info for batch:`, error);
-                // Cache nulls to avoid repeated failed attempts
+                console.error(`Failed to resolve lid/phone for batch:`, error);
+                // Cache nulls to avoid repeated failed attempts for the whole batch
                 batch.forEach(contactId => this.cacheNullContactInfo(contactId));
+                continue;
+            }
+            // Resolve each contact individually so a single bad contact
+            // (e.g. one that throws "Invalid get call using deviceWid")
+            // doesn't discard results for the rest of the batch.
+            for (const [i, contactId] of batch.entries()) {
+                try {
+                    await this.fetchAndCacheSingleContactInfo(contactId, results[i]);
+                } catch (error) {
+                    console.error(`Failed to resolve contact info for ${contactId}:`, error);
+                    this.cacheNullContactInfo(contactId);
+                }
             }
         }
         this.isResolvingContactInfo = false;
