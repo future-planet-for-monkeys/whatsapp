@@ -101,12 +101,12 @@ async function toContactInfoDto(client: WhatsAppClientWithCache, contactInfo: {
 }
 
 export type ClientStatus =
-  | 'initializing'
-  | 'qr_ready'
-  | 'authenticated'
-  | 'ready'
-  | 'disconnected'
-  | 'auth_failure';
+    | 'initializing'
+    | 'qr_ready'
+    | 'authenticated'
+    | 'ready'
+    | 'disconnected'
+    | 'auth_failure';
 
 /**
  * Map a raw WAState value to the simplified ClientStatus used by the API.
@@ -168,11 +168,14 @@ export class SingleController extends Controller {
     async getChats(
         @Query() limit = 50,
         @Query() offset = 0,
+        @Query() includeArchived = false,
     ): Promise<ChatDto[]> {
         const client = await this.client;
         const chats = await client.getChats();
         return await Promise.all(
-            chats.slice(offset, offset + limit)
+            chats
+                .filter(chat => includeArchived || !chat.archived)
+                .slice(offset, offset + limit)
                 .map(chat => toChatDto(client, chat, true))
         );
     }
