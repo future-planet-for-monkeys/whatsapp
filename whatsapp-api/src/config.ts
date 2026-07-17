@@ -1,4 +1,10 @@
+import dotenv from 'dotenv';
+import path from 'node:path';
 import { z } from 'zod';
+
+// Load .env — try CWD first, then fall back to the project root (where this file is).
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config(); // also try CWD (overrides above if found)
 
 // ---------------------------------------------------------------------------
 // Schema — all fields validated at startup; failures print a clear message
@@ -26,8 +32,10 @@ const envSchema = z.object({
   /** TCP port the HTTP server listens on. */
   PORT: z.coerce.number().int().positive().default(3000),
 
-  /** Directory where whatsapp-web.js stores its LocalAuth session data. */
-  SESSION_DATA_PATH: z.string().default('/app/.wwebjs_auth'),
+  /** Directory where whatsapp-web.js stores its LocalAuth session data.
+   *  Relative paths are resolved from the current working directory
+   *  (which is /app inside the Docker container). */
+  SESSION_DATA_PATH: z.string().default('./.wwebjs_auth'),
 
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   TZ: z.string().default('UTC'),

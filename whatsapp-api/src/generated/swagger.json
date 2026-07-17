@@ -42,6 +42,207 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ChatIdDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"server": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					},
+					"_serialized": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"server",
+					"user",
+					"_serialized"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"MessageIdDto": {
+				"properties": {
+					"fromMe": {
+						"type": "boolean"
+					},
+					"remote": {
+						"type": "string"
+					},
+					"id": {
+						"type": "string"
+					},
+					"_serialized": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"fromMe",
+					"remote",
+					"id",
+					"_serialized"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WAWebJS.MessageTypes.TEXT": {
+				"enum": [
+					"chat"
+				],
+				"type": "string"
+			},
+			"WAWebJS.MessageTypes.IMAGE": {
+				"enum": [
+					"image"
+				],
+				"type": "string"
+			},
+			"WAWebJS.MessageTypes.VIDEO": {
+				"enum": [
+					"video"
+				],
+				"type": "string"
+			},
+			"WAWebJS.MessageTypes.AUDIO": {
+				"enum": [
+					"audio"
+				],
+				"type": "string"
+			},
+			"WAWebJS.MessageTypes.DOCUMENT": {
+				"enum": [
+					"document"
+				],
+				"type": "string"
+			},
+			"AllowedMessageTypes": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.TEXT"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.IMAGE"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.VIDEO"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.AUDIO"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.DOCUMENT"
+					}
+				]
+			},
+			"ContactInfoDto": {
+				"properties": {
+					"lid": {
+						"type": "string",
+						"nullable": true
+					},
+					"pn": {
+						"type": "string",
+						"nullable": true
+					},
+					"name": {
+						"type": "string",
+						"nullable": true
+					},
+					"avatarUrl": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"lid",
+					"pn",
+					"name",
+					"avatarUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"MessageDto": {
+				"properties": {
+					"id": {
+						"$ref": "#/components/schemas/MessageIdDto"
+					},
+					"body": {
+						"type": "string"
+					},
+					"hasMedia": {
+						"type": "boolean"
+					},
+					"type": {
+						"$ref": "#/components/schemas/AllowedMessageTypes"
+					},
+					"from": {
+						"$ref": "#/components/schemas/ContactInfoDto"
+					},
+					"timestamp": {
+						"type": "number",
+						"format": "double",
+						"description": "Unix epoch seconds"
+					}
+				},
+				"required": [
+					"id",
+					"body",
+					"hasMedia",
+					"type",
+					"from",
+					"timestamp"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ChatDto": {
+				"properties": {
+					"archived": {
+						"type": "boolean"
+					},
+					"id": {
+						"$ref": "#/components/schemas/ChatIdDto"
+					},
+					"isGroup": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"unreadCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastMessage": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/MessageDto"
+							}
+						],
+						"nullable": true
+					},
+					"pinned": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"archived",
+					"id",
+					"isGroup",
+					"name",
+					"unreadCount",
+					"lastMessage",
+					"pinned"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"QrJsonResponse": {
 				"description": "GET /qr?format=json response",
 				"properties": {
@@ -444,6 +645,11 @@
 					"isGroup": {
 						"type": "boolean"
 					},
+					"phone": {
+						"type": "string",
+						"nullable": true,
+						"description": "Contact's phone number (digits only, e.g. \"16073041892\"), resolved from\nthe chat ID. `null` for group chats, and for LID-addressed 1:1 chats\n(e.g. \"108555483001085@lid\") when the LID↔phone-number mapping hasn't\nbeen resolved locally yet by WhatsApp Web."
+					},
 					"unreadCount": {
 						"type": "number",
 						"format": "double"
@@ -466,6 +672,7 @@
 					"id",
 					"name",
 					"isGroup",
+					"phone",
 					"unreadCount",
 					"timestamp",
 					"lastMessage"
@@ -635,6 +842,636 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/single/chats/all": {
+			"get": {
+				"operationId": "GetChats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ChatDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"default": 0,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/single/chats/{id}": {
+			"get": {
+				"operationId": "GetChatById",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ChatDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/chats/{id}/messages": {
+			"get": {
+				"operationId": "GetChatMessages",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/MessageDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Fetch messages for a specific chat.\nSupports pagination via `limit` and `offset`.",
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"default": 0,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/single/messages/{id}/media": {
+			"get": {
+				"operationId": "DownloadMedia",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "string",
+									"format": "byte"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"error": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"error"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Download media attached to a message.\nReturns the raw binary data with the correct Content-Type header.\nThe `id` parameter is the message's serialized ID (e.g. \"true_16073041892@c.us_3EB0F1F3ABC\").",
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/client/state": {
+			"get": {
+				"operationId": "GetClientState",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"ready": {
+											"type": "boolean",
+											"description": "Convenience flag: true when the client is fully connected and ready"
+										},
+										"qrAvailable": {
+											"type": "boolean",
+											"description": "Whether a QR code is available for pairing"
+										},
+										"status": {
+											"$ref": "#/components/schemas/ClientStatus",
+											"description": "Simplified client status mapped to the API's ClientStatus type"
+										},
+										"waState": {
+											"type": "string",
+											"description": "Raw WAState value from whatsapp-web.js (e.g. \"CONNECTED\", \"DISCONNECTED\", \"UNPAIRED\")"
+										}
+									},
+									"required": [
+										"ready",
+										"qrAvailable",
+										"status",
+										"waState"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get the current WhatsApp client connection state.\nReturns the raw WAState value along with a simplified status and readiness flag.",
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/single/avatar/{contactId}": {
+			"get": {
+				"operationId": "GetAvatar",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "contactId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/contacts/info": {
+			"post": {
+				"operationId": "GetContactInformation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ContactInfoDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/messages/send-text": {
+			"post": {
+				"operationId": "SendMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"message": {
+										"type": "string"
+									},
+									"chatId": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"message",
+									"chatId"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/messages/{chatId}/send-media": {
+			"post": {
+				"operationId": "SendMedia",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"file": {
+										"type": "string",
+										"format": "binary"
+									}
+								},
+								"required": [
+									"file"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/check": {
+			"get": {
+				"operationId": "CheckPhone",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"registered": {
+											"type": "boolean"
+										},
+										"contactInfo": {
+											"allOf": [
+												{
+													"$ref": "#/components/schemas/ContactInfoDto"
+												}
+											],
+											"nullable": true
+										},
+										"phone": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"registered",
+										"contactInfo",
+										"phone"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"error": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"error"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"retryAfterSeconds": {
+											"type": "number",
+											"format": "double"
+										},
+										"error": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"retryAfterSeconds",
+										"error"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "phone",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/qr": {

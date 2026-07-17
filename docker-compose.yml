@@ -7,8 +7,10 @@ services:
     restart: unless-stopped
     shm_size: "1gb"
     # Port 3008 → noVNC HTTP (plain, no HTTPS required)
+    # Port 9223 → Chrome DevTools Protocol (CDP) WebSocket proxy
     ports:
       - "${NOVNC_PORT:-3008}:6901"
+      - "${CDP_PORT:-9223}:9223"
     volumes:
       # Persist Chromium browser profile so WhatsApp session survives container restarts
       - chromium_profile:/chromium-profile

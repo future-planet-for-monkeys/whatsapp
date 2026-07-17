@@ -1,0 +1,46 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug API",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/whatsapp-api",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx"],
+      "args": ["src/server.ts"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development",
+        "TSX_TSCONFIG_PATH": "${workspaceFolder}/whatsapp-api/tsconfig.json"
+      },
+      "preLaunchTask": "tsoa: generate routes",
+      "presentation": {
+        "group": "whatsapp-api",
+        "order": 1
+      }
+    },
+    {
+      "name": "Debug API (fast — skip tsoa)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/whatsapp-api",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx"],
+      "args": ["src/server.ts"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NODE_ENV": "development",
+        "TSX_TSCONFIG_PATH": "${workspaceFolder}/whatsapp-api/tsconfig.json"
+      },
+      "presentation": {
+        "group": "whatsapp-api",
+        "order": 2
+      }
+    }
+  ]
+}

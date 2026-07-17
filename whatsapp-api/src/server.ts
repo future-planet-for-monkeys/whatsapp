@@ -9,7 +9,6 @@
  */
 import { createApp } from './app';
 import { config } from './config';
-import { whatsAppService } from './services/WhatsAppService';
 
 // ---------------------------------------------------------------------------
 // HTTP server
@@ -40,14 +39,14 @@ function shutdown(signal: string): void {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-// ---------------------------------------------------------------------------
-// WhatsApp client — starts non-blocking after the HTTP server is listening.
-//
-// initWhatsApp() handles its own retries internally. The only errors that
-// escape are genuine unrecoverable failures (e.g. completely wrong CDP URL)
-// — but even those are caught here so the HTTP server stays alive and
-// /health keeps responding.
-// ---------------------------------------------------------------------------
-whatsAppService.init().catch((err: unknown) => {
-  console.error('[server] WhatsApp init failed (server stays alive):', err);
-});
+// // ---------------------------------------------------------------------------
+// // WhatsApp client — starts non-blocking after the HTTP server is listening.
+// //
+// // initWhatsApp() handles its own retries internally. The only errors that
+// // escape are genuine unrecoverable failures (e.g. completely wrong CDP URL)
+// // — but even those are caught here so the HTTP server stays alive and
+// // /health keeps responding.
+// // ---------------------------------------------------------------------------
+// whatsAppService.init().catch((err: unknown) => {
+//   console.error('[server] WhatsApp init failed (server stays alive):', err);
+// });

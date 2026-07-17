@@ -2,7 +2,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import swaggerUi from 'swagger-ui-express';
 import { ValidateError } from 'tsoa';
 import { config } from './config';
-import { whatsAppService } from './services/WhatsAppService';
+import { StateError } from './client';
 
 // tsoa-generated artefacts (created by `npm run tsoa` / `tsoa spec-and-routes`)
 // These files do not exist in source control — they are built at image-build
@@ -19,15 +19,41 @@ const swaggerDocument = require('./generated/swagger.json') as Record<string, un
 export function createApp(): express.Express {
   const app = express();
 
+  // CORS middleware to allow frontend access
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Api-Token');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
   // ── Swagger UI (public — no auth) ──────────────────────────────────────
-  app.get('/docs/spec.json', (_req: Request, res: Response) => res.json(swaggerDocument));
+  // The generated swagger.json ships with `servers: [{ url: "/" }]`, which is
+  // a relative URL. swagger-ui's OAS3 "Try it out" feature needs an absolute
+  // URL to build request URLs (`new URL(...)` throws "Invalid URL" otherwise
+  // once you're not on the exact origin the doc was generated for). We
+  // rewrite `servers` per-request using the incoming Host header so it always
+  // resolves to an absolute, reachable URL — regardless of proxy/port/host.
+  app.get('/docs/spec.json', (req: Request, res: Response) => {
+    const origin = `${req.protocol}://${req.get('host')}`;
+    res.json({ ...swaggerDocument, servers: [{ url: origin, description: 'This server' }] });
+  });
   app.use(
     '/docs',
     swaggerUi.serve,
-    swaggerUi.setup(swaggerDocument, { customSiteTitle: 'WhatsApp Neo API Docs' }),
+    // Passing `undefined` (instead of the static swaggerDocument) makes
+    // swagger-ui fetch the spec from `/docs/spec.json` at load time, so it
+    // always gets the request-accurate absolute server URL above.
+    swaggerUi.setup(undefined, {
+      customSiteTitle: 'WhatsApp Neo API Docs',
+      swaggerOptions: { url: '/docs/spec.json' },
+    }),
   );
   // Redirect root → /docs so clicking the morefine dashboard card is useful
   app.get('/', (_req: Request, res: Response) => res.redirect('/docs'));
@@ -214,6 +240,16 @@ export function createApp(): express.Express {
       return res.status(422).json({
         error: 'Validation failed',
         details: err.fields,
+      });
+    }
+
+     if (err instanceof StateError) {
+      return res.status(503).json({
+        error: 'State error',
+        details: {
+          state: err.state,
+          methodName: err.methodName,
+        },
       });
     }
     next(err);
