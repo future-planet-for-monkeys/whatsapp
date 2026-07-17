@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles for chat list and chat view */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Safe area inset helpers */
+.safe-pt {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-h-screen {
+  height: 100vh;
+  height: 100dvh;
+}
