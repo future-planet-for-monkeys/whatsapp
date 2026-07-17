@@ -42,7 +42,7 @@ export default function MediaBubble({
     };
   }, [hasMedia, type]);
 
-  const mediaUrl = isInView ? `/messages/${messageId}/media` : null;
+  const mediaUrl = isInView ? `/messages/${encodeURIComponent(messageId)}/media` : null;
   const { objectUrl, filename, isLoading, error } = useAuthedBlob(mediaUrl);
 
   if (!hasMedia) {

@@ -63,7 +63,7 @@ export default function MessageBubble({
           {/* Message Content */}
           <div className="text-sm break-words pr-12">
             <MediaBubble
-              messageId={id.id}
+              messageId={id._serialized}
               type={type}
               body={body}
               hasMedia={hasMedia}
