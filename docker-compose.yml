@@ -14,6 +14,14 @@ services:
     volumes:
       # Persist Chromium browser profile so WhatsApp session survives container restarts
       - chromium_profile:/chromium-profile
+    healthcheck:
+      # Chrome's own CDP endpoint (loopback, pre-nginx) — proves the browser
+      # process itself is up before anything tries to talk to it.
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9222/json/version"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
     networks:
       - whatsapp-internal
       - proxy
@@ -30,7 +38,16 @@ services:
     volumes:
       - ./cdp-proxy.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - whatsapp-chromium
+      whatsapp-chromium:
+        condition: service_healthy
+    healthcheck:
+      # End-to-end check through the proxy itself — confirms the Host/Origin
+      # rewrite is working and Chrome answers through it.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9223/json/version"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
 
   whatsapp-api:
     build:
@@ -50,8 +67,10 @@ services:
       - session:/app/.wwebjs_auth
       # node_modules live inside the image layer, NOT on the host
     depends_on:
-      - whatsapp-chromium
-      - cdp-proxy
+      whatsapp-chromium:
+        condition: service_healthy
+      cdp-proxy:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s

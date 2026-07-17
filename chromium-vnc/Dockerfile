@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     websockify \
     supervisor \
     fonts-noto-cjk \
+    curl \
     && ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html \
     && rm -rf /var/lib/apt/lists/*
 
