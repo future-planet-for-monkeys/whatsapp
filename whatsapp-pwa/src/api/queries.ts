@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, UseQueryResult, UseInfiniteQueryResult, UseMutationResult, InfiniteData } from '@tanstack/react-query';
 import { client } from './client';
-import { ClientStateResponse, ChatDto, MessageDto } from './types';
+import { ClientStateResponse, ChatDto, MessageDto, CheckResponse } from './types';
 
 export function useChat(
   id: string,
@@ -112,3 +112,12 @@ export function useInfiniteChats(options?: {
 // dedicated query hook. The `/avatar/{id}` endpoint now streams raw,
 // unencrypted image bytes directly, so avatars are loaded with
 // `useAuthedBlob` (see `components/ui/Avatar.tsx`) just like other media.
+
+export function useCheckPhone(): UseMutationResult<CheckResponse, Error, string> {
+  return useMutation<CheckResponse, Error, string>({
+    mutationFn: async (phone: string): Promise<CheckResponse> => {
+      const response = await client.get<CheckResponse>(`/check?phone=${encodeURIComponent(phone)}`);
+      return response.data;
+    },
+  });
+}
