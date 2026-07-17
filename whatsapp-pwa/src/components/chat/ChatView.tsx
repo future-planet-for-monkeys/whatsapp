@@ -63,12 +63,22 @@ export default function ChatView({ chatId, onBack }: ChatViewProps): React.React
     return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
   }, [page0.data, page1.data, page2.data, page3.data, optimisticMessages]);
 
+  // Track the last chatId and unreadCount we marked as read to prevent infinite loops
+  const lastMarkedReadRef = useRef<{ chatId: string; unreadCount: number } | null>(null);
+
   // Mark as read function
   const triggerMarkAsRead = React.useCallback(() => {
     if (chat && chat.unreadCount > 0) {
-      markAsReadMutation.mutate(chatId);
+      const alreadyMarked =
+        lastMarkedReadRef.current?.chatId === chatId &&
+        lastMarkedReadRef.current?.unreadCount === chat.unreadCount;
+
+      if (!alreadyMarked && !markAsReadMutation.isPending) {
+        lastMarkedReadRef.current = { chatId, unreadCount: chat.unreadCount };
+        markAsReadMutation.mutate(chatId);
+      }
     }
-  }, [chat, chatId, markAsReadMutation]);
+  }, [chat, chatId, markAsReadMutation.isPending]);
 
   // Mark as read on mount or when unreadCount changes
   useEffect(() => {

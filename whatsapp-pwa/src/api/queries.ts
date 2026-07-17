@@ -33,17 +33,41 @@ export function useChatMessages(
   });
 }
 
-export function useMarkAsRead(): UseMutationResult<{ success: boolean }, Error, string> {
+export function useMarkAsRead(): UseMutationResult<{ success: boolean }, Error, string, { previousChat?: ChatDto }> {
   const queryClient = useQueryClient();
-  return useMutation<{ success: boolean }, Error, string>({
+  return useMutation<{ success: boolean }, Error, string, { previousChat?: ChatDto }>({
     mutationFn: async (id: string): Promise<{ success: boolean }> => {
       const response = await client.post<{ success: boolean }>(`/chats/${id}/read`);
       return response.data;
     },
+    onMutate: async (id) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['chat', id] });
+
+      // Snapshot the previous value
+      const previousChat = queryClient.getQueryData<ChatDto>(['chat', id]);
+
+      // Optimistically update to the new value
+      if (previousChat) {
+        queryClient.setQueryData<ChatDto>(['chat', id], {
+          ...previousChat,
+          unreadCount: 0,
+        });
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousChat };
+    },
+    onError: (_err, id, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousChat) {
+        queryClient.setQueryData<ChatDto>(['chat', id], context.previousChat);
+      }
+    },
     onSuccess: (_, id) => {
       // Invalidate chats list to clear unread badge
       queryClient.invalidateQueries({ queryKey: ['chats'] });
-      // Also invalidate the specific chat query
+      // Also invalidate the specific chat query to ensure we are in sync with server
       queryClient.invalidateQueries({ queryKey: ['chat', id] });
     },
   });
