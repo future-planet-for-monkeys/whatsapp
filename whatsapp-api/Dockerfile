@@ -2,8 +2,14 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install dependencies first (cached layer)
+# Install dependencies first (cached layer).
+# "patches/" must be present BEFORE `npm ci` runs, because the postinstall
+# hook (`patch-package`) applies patches at install time. Without this, the
+# whatsapp-web.js patch is silently skipped ("No patch files found") and the
+# unpatched library throws on getChat/getChatById/getChats once WhatsApp Web
+# renames internal fields (e.g. message key `_serialized` → `$1`).
 COPY package.json package-lock.json* ./
+COPY patches ./patches
 RUN npm ci --omit=dev=false
 
 # Copy config files needed by tsoa code-gen
