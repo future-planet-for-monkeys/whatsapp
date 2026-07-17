@@ -23,6 +23,13 @@ export function createApp(): express.Express {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // Liveness probe — public, no auth. Used by the Docker healthcheck so
+  // dependent services (e.g. the PWA) only start once the API is actually
+  // accepting connections.
+  app.get('/health', (_req: Request, res: Response) => {
+    res.json({ ok: true, ts: new Date().toISOString() });
+  });
+
   // Swagger UI
   app.get('/docs/spec.json', (req: Request, res: Response) => {
     const origin = `${req.protocol}://${req.get('host')}`;

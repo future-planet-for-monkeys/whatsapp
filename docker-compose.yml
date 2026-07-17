@@ -72,11 +72,18 @@ services:
       cdp-proxy:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
-      interval: 30s
+      # node:20-slim has neither curl nor wget — use Node's own http client.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 120s
+      retries: 5
+      start_period: 60s
     networks:
       - whatsapp-internal
       - proxy
