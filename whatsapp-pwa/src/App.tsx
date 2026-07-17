@@ -19,35 +19,59 @@ const queryClient = new QueryClient({
   },
 });
 
+import ErrorBoundary from './components/ui/ErrorBoundary.tsx';
+import OfflineBanner from './components/ui/OfflineBanner.tsx';
+
 export default function App(): React.ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
+      <OfflineBanner />
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/pair" element={<PairPage />} />
+          <Route
+            path="/login"
+            element={
+              <ErrorBoundary>
+                <LoginPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/pair"
+            element={
+              <ErrorBoundary>
+                <PairPage />
+              </ErrorBoundary>
+            }
+          />
           <Route
             path="/chats"
             element={
-              <RequireReady>
-                <ChatsPage />
-              </RequireReady>
+              <ErrorBoundary>
+                <RequireReady>
+                  <ChatsPage />
+                </RequireReady>
+              </ErrorBoundary>
             }
           />
           <Route
             path="/chat/:id"
             element={
-              <RequireReady>
-                <ChatPage />
-              </RequireReady>
+              <ErrorBoundary>
+                <RequireReady>
+                  <ChatPage />
+                </RequireReady>
+              </ErrorBoundary>
             }
           />
           <Route
             path="/new-chat"
             element={
-              <RequireReady>
-                <NewChatPage />
-              </RequireReady>
+              <ErrorBoundary>
+                <RequireReady>
+                  <NewChatPage />
+                </RequireReady>
+              </ErrorBoundary>
             }
           />
           <Route path="*" element={<Navigate to="/chats" replace />} />

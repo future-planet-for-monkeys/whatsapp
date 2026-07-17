@@ -80,7 +80,7 @@ export default function MessageInput({
   const isSendDisabled = isSending || disabled || (!selectedFile && !text.trim());
 
   return (
-    <div className="flex flex-col bg-[#f0f2f5] border-t border-gray-200 px-4 py-2 pb-safe">
+    <div className="flex flex-col bg-[#f0f2f5] border-t border-gray-200 px-4 py-2 pb-[calc(8px+env(safe-area-inset-bottom))]">
       {/* Selected File Preview Bar */}
       {selectedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg mb-2 shadow-sm border border-gray-200">
@@ -95,7 +95,7 @@ export default function MessageInput({
           </div>
           <button
             onClick={handleRemoveFile}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+            className="text-gray-400 hover:text-gray-600 p-2.5 rounded-full hover:bg-gray-100 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -110,7 +110,7 @@ export default function MessageInput({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isSending || disabled}
-          className="flex-shrink-0 text-gray-600 hover:text-gray-800 p-2 rounded-full hover:bg-gray-200 transition-colors disabled:opacity-50"
+          className="flex-shrink-0 text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
           title="Attach file"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,7 +147,7 @@ export default function MessageInput({
         <button
           onClick={handleSend}
           disabled={isSendDisabled}
-          className="flex-shrink-0 bg-whatsapp-teal text-white hover:bg-opacity-90 disabled:bg-gray-300 disabled:text-gray-400 p-2.5 rounded-full transition-colors shadow-sm"
+          className="flex-shrink-0 bg-whatsapp-teal text-white hover:bg-opacity-90 disabled:bg-gray-300 disabled:text-gray-400 p-3 rounded-full transition-colors shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
           title="Send"
         >
           {isSending ? (

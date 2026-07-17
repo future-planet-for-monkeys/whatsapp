@@ -112,7 +112,7 @@ export default function MediaBubble({
                   className="max-w-full max-h-full object-contain"
                 />
                 <button
-                  className="absolute top-4 right-4 text-white text-2xl font-bold bg-gray-800 bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-75"
+                  className="absolute top-4 right-4 text-white text-2xl font-bold bg-gray-800 bg-opacity-50 rounded-full w-11 h-11 flex items-center justify-center hover:bg-opacity-75 min-w-[44px] min-h-[44px]"
                   onClick={() => setIsLightboxOpen(false)}
                 >
                   &times;
@@ -178,7 +178,7 @@ export default function MediaBubble({
             </div>
             <button
               onClick={handleDownload}
-              className="flex-shrink-0 bg-whatsapp-teal text-white hover:bg-opacity-90 p-2 rounded-full transition-colors"
+              className="flex-shrink-0 bg-whatsapp-teal text-white hover:bg-opacity-90 p-3 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Download"
             >
               <svg

@@ -21,14 +21,14 @@ export default function ChatsPage(): React.ReactElement {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/new-chat')}
-            className="p-2 hover:bg-whatsapp-green rounded-full transition-colors duration-150"
+            className="p-3 hover:bg-whatsapp-green rounded-full transition-colors duration-150 min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="New Chat"
           >
             <MessageSquarePlus className="w-6 h-6" />
           </button>
           <button
             onClick={handleLogout}
-            className="p-2 hover:bg-whatsapp-green rounded-full transition-colors duration-150"
+            className="p-3 hover:bg-whatsapp-green rounded-full transition-colors duration-150 min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Logout"
           >
             <LogOut className="w-6 h-6" />

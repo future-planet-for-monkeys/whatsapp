@@ -80,7 +80,7 @@ export default function PairPage(): React.ReactElement {
           </p>
           <button
             onClick={handleLogout}
-            className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors"
+            className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors min-h-[44px]"
           >
             Log Out
           </button>
@@ -141,7 +141,7 @@ export default function PairPage(): React.ReactElement {
 
           <button
             onClick={handleLogout}
-            className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors"
+            className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors min-h-[44px]"
           >
             Log Out / Cancel
           </button>

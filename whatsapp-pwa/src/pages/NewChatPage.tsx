@@ -107,7 +107,7 @@ export default function NewChatPage(): React.ReactElement {
       <header className="bg-whatsapp-teal text-white px-4 py-3 shadow-md sticky top-0 z-10 flex items-center gap-3 pt-[calc(12px+env(safe-area-inset-top))]">
         <button
           onClick={() => navigate('/chats')}
-          className="p-1 hover:bg-whatsapp-green rounded-full transition-colors duration-150"
+          className="p-2.5 hover:bg-whatsapp-green rounded-full transition-colors duration-150 min-w-[44px] min-h-[44px] flex items-center justify-center"
           aria-label="Back to Chats"
         >
           <ArrowLeft className="w-6 h-6" />

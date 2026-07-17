@@ -86,7 +86,7 @@ export default function LoginPage(): React.ReactElement {
           </p>
           <button
             onClick={handleLogout}
-            className="text-sm text-red-600 hover:text-red-800 font-medium"
+            className="text-sm text-red-600 hover:text-red-800 font-medium min-h-[44px] px-4 py-2"
           >
             Cancel
           </button>
@@ -123,13 +123,13 @@ export default function LoginPage(): React.ReactElement {
           <div className="flex flex-col gap-2">
             <button
               onClick={handleRetry}
-              className="w-full py-2 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal-dark text-white font-medium rounded-md transition-colors"
+              className="w-full py-3 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal-dark text-white font-medium rounded-md transition-colors min-h-[44px]"
             >
               Retry Connection
             </button>
             <button
               onClick={handleLogout}
-              className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors"
+              className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors min-h-[44px]"
             >
               Log Out
             </button>
@@ -167,13 +167,13 @@ export default function LoginPage(): React.ReactElement {
           <div className="flex flex-col gap-2">
             <button
               onClick={handleRetry}
-              className="w-full py-2 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal-dark text-white font-medium rounded-md transition-colors"
+              className="w-full py-3 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal-dark text-white font-medium rounded-md transition-colors min-h-[44px]"
             >
               Retry Connection
             </button>
             <button
               onClick={handleLogout}
-              className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors"
+              className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-md transition-colors min-h-[44px]"
             >
               Log Out
             </button>
@@ -211,7 +211,7 @@ export default function LoginPage(): React.ReactElement {
               type="text"
               value={formUsername}
               onChange={(e) => setFormUsername(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-whatsapp-teal focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-whatsapp-teal focus:border-transparent min-h-[44px]"
               placeholder="Enter username"
               disabled={isChecking}
             />
@@ -226,7 +226,7 @@ export default function LoginPage(): React.ReactElement {
               type="password"
               value={formPassword}
               onChange={(e) => setFormPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-whatsapp-teal focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-whatsapp-teal focus:border-transparent min-h-[44px]"
               placeholder="Enter password"
               disabled={isChecking}
             />
@@ -235,7 +235,7 @@ export default function LoginPage(): React.ReactElement {
           <button
             type="submit"
             disabled={isChecking}
-            className="w-full py-2 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal-dark text-white font-medium rounded-md transition-colors disabled:opacity-50 flex items-center justify-center"
+            className="w-full py-3 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal-dark text-white font-medium rounded-md transition-colors disabled:opacity-50 flex items-center justify-center min-h-[44px]"
           >
             {isChecking ? <LoadingSpinner size="sm" className="mr-2" /> : null}
             {isChecking ? 'Logging in...' : 'Log In'}

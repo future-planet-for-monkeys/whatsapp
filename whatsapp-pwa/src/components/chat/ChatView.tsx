@@ -259,12 +259,12 @@ export default function ChatView({ chatId, onBack }: ChatViewProps): React.React
   return (
     <div className="flex flex-col h-full bg-[#efeae2] relative overflow-hidden">
       {/* Chat Header */}
-      <header className="flex items-center justify-between bg-[#f0f2f5] border-b border-gray-200 px-4 py-2.5 shrink-0 z-10 shadow-sm">
+      <header className="flex items-center justify-between bg-[#f0f2f5] border-b border-gray-200 px-4 py-2.5 pt-[calc(10px+env(safe-area-inset-top))] shrink-0 z-10 shadow-sm">
         <div className="flex items-center space-x-3 min-w-0">
           {onBack && (
             <button
               onClick={onBack}
-              className="md:hidden text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-200 transition-colors"
+              className="md:hidden text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Back"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
