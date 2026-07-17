@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath } from 'url';
@@ -8,59 +8,62 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
-      manifest: {
-        name: 'WhatsApp PWA',
-        short_name: 'WhatsApp PWA',
-        description: 'A lightweight WhatsApp Progressive Web App',
-        theme_color: '#075E54',
-        background_color: '#efeae2',
-        display: 'standalone',
-        orientation: 'portrait',
-        icons: [
-          {
-            src: 'icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            src: 'icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        manifest: {
+          name: 'WhatsApp PWA',
+          short_name: 'WhatsApp PWA',
+          description: 'A lightweight WhatsApp Progressive Web App',
+          theme_color: '#075E54',
+          background_color: '#efeae2',
+          display: 'standalone',
+          orientation: 'portrait',
+          icons: [
+            {
+              src: 'icons/icon-192x192.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: 'icons/icon-512x512.png',
+              sizes: '512x512',
+              type: 'image/png'
+            },
+            {
+              src: 'icons/icon-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any maskable'
+            }
+          ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          // Since we are polling, we don't want to cache API requests
+          navigateFallbackDenylist: [/^\/single/],
+        }
+      })
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        // Since we are polling, we don't want to cache API requests
-        navigateFallbackDenylist: [/^\/single/],
-      }
-    })
-  ],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
     },
-  },
-  server: {
-    port: 5173,
-    proxy: {
-      '/single': {
-        target: 'http://localhost:3022',
-        changeOrigin: true,
-        secure: false,
+    server: {
+      port: 5173,
+      proxy: {
+        '/single': {
+          target: env.VITE_API_URL || 'http://localhost:3007',
+          changeOrigin: true,
+          secure: false,
+        }
       }
     }
-  }
+  };
 });
