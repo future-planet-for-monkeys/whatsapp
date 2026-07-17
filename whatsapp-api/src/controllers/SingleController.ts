@@ -360,7 +360,7 @@ export class SingleController extends Controller {
         @Res() badGatewayResponse: TsoaResponse<502, { message: string }>,
     ): Promise<void> {
         const client = await this.client;
-        const avatarResult = await client.resolveAvatar(contactId, true, true);
+        const avatarResult = await client.resolveAvatar(contactId);
         if (!avatarResult?.avatarUrl) {
             return notFoundResponse(404, { message: 'Avatar not found' });
         }

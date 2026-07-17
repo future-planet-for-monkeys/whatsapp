@@ -15,11 +15,23 @@ export default function ChatListItem({ chat }: ChatListItemProps): React.ReactEl
 
   // Use the chat's own avatar (works for both groups and 1:1 chats, and is
   // already resolved server-side to our own `/avatar/{id}` proxy path — see
-  // SingleController.toChatDto). Fall back to the contact's lid for 1:1
-  // chats so Avatar can still lazily resolve it if not yet cached.
+  // SingleController.toChatDto). Fall back to the contact's fully-qualified
+  // WhatsApp ID for 1:1 chats so Avatar can still lazily resolve it if not
+  // yet cached.
+  //
+  // IMPORTANT: must use `chat.id._serialized` (e.g. "1234567890@c.us" or
+  // "1234567890@lid"), not the bare `chat.id.user` digits. Some contacts are
+  // addressed via `@lid` rather than `@c.us`, and the server-side avatar
+  // resolver builds a WID from whatever string it's given — a bare number
+  // with no domain gets treated as `@c.us` by default. If the contact is
+  // actually `@lid`-addressed, that produces a WID for a non-existent
+  // contact, and whatsapp-web.js throws
+  // `Cannot read properties of null (reading 'commonGid')` deep inside
+  // requestProfilePicFromServer when it tries to read the (nonexistent)
+  // contact's data.
   const contact = {
-    lid: chat.isGroup ? null : chat.id.user,
-    pn: chat.isGroup ? null : chat.id.user,
+    lid: chat.isGroup ? null : chat.id._serialized,
+    pn: chat.isGroup ? null : chat.id._serialized,
     name: chat.name,
     avatarUrl: chat.chatAvatarUrl,
   };
