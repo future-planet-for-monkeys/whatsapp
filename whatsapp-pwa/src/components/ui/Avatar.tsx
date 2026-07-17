@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ContactInfoDto } from '../../api/types';
-import { useLazyAvatar } from '../../api/queries';
+import { useAuthedBlob } from '../../hooks/useAuthedBlob';
 
 interface AvatarProps {
   contact: ContactInfoDto | null;
@@ -12,11 +12,18 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
   const [isInViewport, setIsInViewport] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const hasDirectUrl = !!contact?.avatarUrl;
   const lid = contact?.lid ?? null;
 
+  // The API never hands back raw WhatsApp CDN URLs (they can be signed/
+  // time-limited, mislabeled, or require the authenticated pup session to
+  // fetch). Instead `contact.avatarUrl` — when present — is already a path
+  // to our own `/avatar/{id}` proxy endpoint. If it hasn't been resolved yet
+  // but we know the contact's lid, we can still hit that same endpoint
+  // directly (it resolves + caches on demand server-side).
+  const avatarPath = contact?.avatarUrl ?? (lid ? `/avatar/${encodeURIComponent(lid)}` : null);
+
   useEffect(() => {
-    if (hasDirectUrl || !lid) return;
+    if (!avatarPath) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -35,14 +42,13 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
     return () => {
       observer.disconnect();
     };
-  }, [hasDirectUrl, lid]);
+  }, [avatarPath]);
 
-  // Fetch avatar lazily if direct URL is missing but lid is present and in viewport
-  const { data: lazyAvatarUrl, isError } = useLazyAvatar(lid, {
-    enabled: !hasDirectUrl && !!lid && isInViewport,
-  });
+  // Fetch the avatar through our authenticated API proxy (never directly
+  // from WhatsApp's CDN) once it's in (or near) the viewport.
+  const { objectUrl, error } = useAuthedBlob(isInViewport ? avatarPath : null);
 
-  const finalSrc = contact?.avatarUrl || lazyAvatarUrl || null;
+  const finalSrc = objectUrl;
 
   // Initials fallback
   const getInitials = (str: string): string => {
@@ -96,7 +102,7 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
       ref={containerRef}
       className={`relative flex items-center justify-center rounded-full overflow-hidden select-none shrink-0 ${sizeClasses[size]}`}
     >
-      {finalSrc && !isError ? (
+      {finalSrc && !error ? (
         <img
           src={finalSrc}
           alt={name}

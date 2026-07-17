@@ -110,6 +110,7 @@ const models: TsoaRoute.Models = {
             "id": {"ref":"ChatIdDto","required":true},
             "isGroup": {"dataType":"boolean","required":true},
             "name": {"dataType":"string","required":true},
+            "chatAvatarUrl": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "unreadCount": {"dataType":"double","required":true},
             "lastMessage": {"dataType":"union","subSchemas":[{"ref":"MessageDto"},{"dataType":"enum","enums":[null]}],"required":true},
             "pinned": {"dataType":"boolean","required":true},
@@ -350,8 +351,10 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSingleController_getAvatar: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 contactId: {"in":"path","name":"contactId","required":true,"dataType":"string"},
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
+                badGatewayResponse: {"in":"res","name":"502","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.get('/single/avatar/:contactId',
             authenticateMiddleware([{"basicAuth":[]}]),

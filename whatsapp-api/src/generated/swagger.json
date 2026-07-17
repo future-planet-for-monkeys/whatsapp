@@ -204,6 +204,10 @@
 					"name": {
 						"type": "string"
 					},
+					"chatAvatarUrl": {
+						"type": "string",
+						"nullable": true
+					},
 					"unreadCount": {
 						"type": "number",
 						"format": "double"
@@ -230,6 +234,7 @@
 					"id",
 					"isGroup",
 					"name",
+					"chatAvatarUrl",
 					"unreadCount",
 					"lastMessage",
 					"pinned",
@@ -668,15 +673,8 @@
 			"get": {
 				"operationId": "GetAvatar",
 				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "string"
-								}
-							}
-						}
+					"204": {
+						"description": "No content"
 					},
 					"404": {
 						"description": "",
@@ -695,8 +693,27 @@
 								}
 							}
 						}
+					},
+					"502": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
+				"description": "Serve a contact/chat's avatar as raw, unencrypted image bytes.\n\nWe intentionally never hand the raw WhatsApp CDN URL (pps.whatsapp.net /\nmmg.whatsapp.net, etc.) back to the browser. Those URLs:\n  - are signed and time-limited (`oe`/`oh` query params expire),\n  - are sometimes served with misleading headers\n    (e.g. `Content-Disposition: attachment; filename=file.enc`),\n  - and, for actual message media, are AES-encrypted and require the\n    mediaKey to decrypt.\n\nSince the API container already has an authenticated puppeteer/WhatsApp\nWeb session, we fetch the image server-side here and stream back plain\nimage bytes with a correct Content-Type — the client never talks to\nWhatsApp's CDN directly.",
 				"tags": [
 					"Single"
 				],

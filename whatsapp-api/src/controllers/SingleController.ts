@@ -82,7 +82,12 @@ async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImm
         id: new ChatIdDto(chat.id),
         isGroup: chat.isGroup,
         name: chat.name,
-        chatAvatarUrl: avatarUrl?.avatarUrl || null,
+        // Never expose the raw WhatsApp CDN URL to the client — it may be
+        // signed/time-limited or otherwise require the authenticated pup
+        // session to fetch correctly. Instead point at our own proxy
+        // endpoint, which downloads (and decrypts if necessary) the image
+        // server-side and always returns a plain, unencrypted image.
+        chatAvatarUrl: avatarUrl?.avatarUrl ? `/avatar/${encodeURIComponent(chat.id._serialized)}` : null,
         unreadCount: chat.unreadCount,
         lastMessage: chat.lastMessage ? await toMessageDto(client, chat.lastMessage, resolveImmediately) : null,
         pinned: chat.pinned,
@@ -112,11 +117,16 @@ async function toContactInfoDto(client: WhatsAppClientWithCache, contactInfo: {
     lid: string | null; pn: string | null; name: string | null
 }, resolveImmediately = false): Promise<ContactInfoDto> {
     const avatarUrl = contactInfo.lid ? await client.resolveAvatar(contactInfo.lid, resolveImmediately) : null;
+    // Same reasoning as toChatDto: only ever hand back our own proxy path,
+    // never the raw upstream CDN URL.
+    const resolvedAvatarUrl = (avatarUrl?.avatarUrl && contactInfo.lid)
+        ? `/avatar/${encodeURIComponent(contactInfo.lid)}`
+        : null;
     return {
         lid: contactInfo?.lid,
         pn: contactInfo?.pn,
         name: contactInfo?.name,
-        avatarUrl: avatarUrl?.avatarUrl || null
+        avatarUrl: resolvedAvatarUrl
     };
 }
 
@@ -325,17 +335,57 @@ export class SingleController extends Controller {
         }
     }
 
+    /**
+     * Serve a contact/chat's avatar as raw, unencrypted image bytes.
+     *
+     * We intentionally never hand the raw WhatsApp CDN URL (pps.whatsapp.net /
+     * mmg.whatsapp.net, etc.) back to the browser. Those URLs:
+     *   - are signed and time-limited (`oe`/`oh` query params expire),
+     *   - are sometimes served with misleading headers
+     *     (e.g. `Content-Disposition: attachment; filename=file.enc`),
+     *   - and, for actual message media, are AES-encrypted and require the
+     *     mediaKey to decrypt.
+     *
+     * Since the API container already has an authenticated puppeteer/WhatsApp
+     * Web session, we fetch the image server-side here and stream back plain
+     * image bytes with a correct Content-Type — the client never talks to
+     * WhatsApp's CDN directly.
+     */
     @Get('avatar/{contactId}')
+    @Produces('image/jpeg')
     async getAvatar(
+        @Request() req: ExpressRequest,
         @Path() contactId: string,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
-    ): Promise<string> {
+        @Res() badGatewayResponse: TsoaResponse<502, { message: string }>,
+    ): Promise<void> {
         const client = await this.client;
         const avatarResult = await client.resolveAvatar(contactId, true, true);
         if (!avatarResult?.avatarUrl) {
             return notFoundResponse(404, { message: 'Avatar not found' });
         }
-        return avatarResult.avatarUrl;
+
+        let upstream: Response;
+        try {
+            upstream = await fetch(avatarResult.avatarUrl);
+        } catch (error) {
+            console.error(`Failed to fetch avatar for ${contactId}:`, error);
+            return badGatewayResponse(502, { message: 'Failed to fetch avatar' });
+        }
+
+        if (!upstream.ok) {
+            return notFoundResponse(404, { message: 'Avatar not found' });
+        }
+
+        const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+        const arrayBuffer = await upstream.arrayBuffer();
+
+        const res = req.res!;
+        res.setHeader('Content-Type', contentType);
+        // No Content-Disposition here — this must always render inline as an
+        // image, never trigger a download or be mislabeled as an .enc file.
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        res.end(Buffer.from(arrayBuffer));
     }
 
     @Post('contacts/info')

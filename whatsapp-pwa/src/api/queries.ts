@@ -108,18 +108,7 @@ export function useInfiniteChats(options?: {
   });
 }
 
-export function useLazyAvatar(
-  lid: string | null,
-  options?: { enabled?: boolean }
-): UseQueryResult<string, Error> {
-  return useQuery<string, Error>({
-    queryKey: ['avatar', lid],
-    queryFn: async (): Promise<string> => {
-      if (!lid) throw new Error('No lid provided');
-      const response = await client.get<string>(`/avatar/${lid}`);
-      return response.data;
-    },
-    staleTime: 3600000, // 1 hour
-    enabled: !!lid && options?.enabled !== false,
-  });
-}
+// NOTE: Avatar images are no longer fetched as a JSON string URL via a
+// dedicated query hook. The `/avatar/{id}` endpoint now streams raw,
+// unencrypted image bytes directly, so avatars are loaded with
+// `useAuthedBlob` (see `components/ui/Avatar.tsx`) just like other media.

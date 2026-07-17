@@ -43,6 +43,7 @@ export interface ChatDto {
   archived: boolean;
   id: ChatIdDto;
   isGroup: boolean;
+  chatAvatarUrl: string | null;
   name: string;
   unreadCount: number;
   lastMessage: MessageDto | null;

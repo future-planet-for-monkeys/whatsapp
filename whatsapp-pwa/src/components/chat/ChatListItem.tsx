@@ -13,30 +13,15 @@ export default function ChatListItem({ chat }: ChatListItemProps): React.ReactEl
   const previewText = getMessagePreview(chat.lastMessage);
   const formattedTime = formatChatTimestamp(chat.timestamp);
 
-  // Determine the contact info for the avatar.
-  // If it's a group, we can pass null or construct a dummy contact info.
-  // If it's a single chat, we can use chat.lastMessage?.from or construct one.
-  // Wait, let's check if ChatDto has a contactInfo or if we should use chat.id._serialized or chat.name.
-  // Let's look at ChatDto in types.ts:
-  // export interface ChatDto {
-  //   archived: boolean;
-  //   id: ChatIdDto;
-  //   isGroup: boolean;
-  //   name: string;
-  //   unreadCount: number;
-  //   lastMessage: MessageDto | null;
-  //   pinned: boolean;
-  //   timestamp: number;
-  // }
-  // Wait, if it's a group, we can pass a contact with lid: null, avatarUrl: null, pn: null, name: chat.name.
-  // If it's a single chat, we can use chat.lastMessage?.from (if available) or construct a contact with lid: chat.id.user, avatarUrl: null, pn: null, name: chat.name.
-  // Wait, let's check if chat.id.user is the lid or if we can use chat.id._serialized.
-  // Actually, let's construct a ContactInfoDto:
-  const contact = chat.lastMessage?.from || {
+  // Use the chat's own avatar (works for both groups and 1:1 chats, and is
+  // already resolved server-side to our own `/avatar/{id}` proxy path — see
+  // SingleController.toChatDto). Fall back to the contact's lid for 1:1
+  // chats so Avatar can still lazily resolve it if not yet cached.
+  const contact = {
     lid: chat.isGroup ? null : chat.id.user,
     pn: chat.isGroup ? null : chat.id.user,
     name: chat.name,
-    avatarUrl: null,
+    avatarUrl: chat.chatAvatarUrl,
   };
 
   return (
