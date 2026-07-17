@@ -7,41 +7,6 @@
 		"requestBodies": {},
 		"responses": {},
 		"schemas": {
-			"ClientStatus": {
-				"type": "string",
-				"enum": [
-					"initializing",
-					"qr_ready",
-					"authenticated",
-					"ready",
-					"disconnected",
-					"auth_failure"
-				]
-			},
-			"StatusResponse": {
-				"description": "GET /status response",
-				"properties": {
-					"status": {
-						"$ref": "#/components/schemas/ClientStatus",
-						"description": "Current lifecycle state of the WhatsApp client"
-					},
-					"qrAvailable": {
-						"type": "boolean",
-						"description": "Whether a QR code PNG is available at GET /qr"
-					},
-					"ready": {
-						"type": "boolean",
-						"description": "Convenience flag: true only when status === \"ready\""
-					}
-				},
-				"required": [
-					"status",
-					"qrAvailable",
-					"ready"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"ChatIdDto": {
 				"properties": {
 					"id": {
@@ -114,9 +79,21 @@
 				],
 				"type": "string"
 			},
+			"WAWebJS.MessageTypes.VOICE": {
+				"enum": [
+					"ptt"
+				],
+				"type": "string"
+			},
 			"WAWebJS.MessageTypes.DOCUMENT": {
 				"enum": [
 					"document"
+				],
+				"type": "string"
+			},
+			"WAWebJS.MessageTypes.STICKER": {
+				"enum": [
+					"sticker"
 				],
 				"type": "string"
 			},
@@ -135,7 +112,19 @@
 						"$ref": "#/components/schemas/WAWebJS.MessageTypes.AUDIO"
 					},
 					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.VOICE"
+					},
+					{
 						"$ref": "#/components/schemas/WAWebJS.MessageTypes.DOCUMENT"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.STICKER"
+					},
+					{
+						"type": "string",
+						"enum": [
+							"unsupported"
+						]
 					}
 				]
 			},
@@ -229,6 +218,11 @@
 					},
 					"pinned": {
 						"type": "boolean"
+					},
+					"timestamp": {
+						"type": "number",
+						"format": "double",
+						"description": "Unix epoch seconds — added in Phase 0.3"
 					}
 				},
 				"required": [
@@ -238,555 +232,52 @@
 					"name",
 					"unreadCount",
 					"lastMessage",
-					"pinned"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"QrJsonResponse": {
-				"description": "GET /qr?format=json response",
-				"properties": {
-					"qr": {
-						"type": "string",
-						"description": "Base64 data-URL, e.g. \"data:image/png;base64,...\""
-					}
-				},
-				"required": [
-					"qr"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"QrUnavailableError": {
-				"properties": {
-					"error": {
-						"type": "string"
-					},
-					"retryAfterSeconds": {
-						"type": "number",
-						"format": "double",
-						"description": "Seconds until the client is expected to be ready (503 responses only)"
-					},
-					"hint": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"error",
-					"hint"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ErrorResponse": {
-				"properties": {
-					"error": {
-						"type": "string"
-					},
-					"retryAfterSeconds": {
-						"type": "number",
-						"format": "double",
-						"description": "Seconds until the client is expected to be ready (503 responses only)"
-					}
-				},
-				"required": [
-					"error"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ServiceUnavailableError": {
-				"description": "503 Service Unavailable — WhatsApp client is not in the 'ready' state.\nShared across controllers so tsoa sees exactly one model definition.",
-				"properties": {
-					"error": {
-						"type": "string"
-					},
-					"retryAfterSeconds": {
-						"type": "number",
-						"format": "double",
-						"description": "Seconds until the client is expected to be ready (503 responses only)"
-					}
-				},
-				"required": [
-					"error",
-					"retryAfterSeconds"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"MessageSentResponse": {
-				"properties": {
-					"ok": {
-						"type": "boolean",
-						"enum": [
-							true
-						],
-						"nullable": false
-					},
-					"id": {
-						"type": "string",
-						"description": "Serialised message ID returned by whatsapp-web.js"
-					},
-					"to": {
-						"type": "string",
-						"description": "Normalised WhatsApp chat ID the message was sent to"
-					},
-					"timestamp": {
-						"type": "number",
-						"format": "double",
-						"description": "Unix epoch seconds"
-					}
-				},
-				"required": [
-					"ok",
-					"id",
-					"to",
+					"pinned",
 					"timestamp"
 				],
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SendMessageBody": {
-				"properties": {
-					"to": {
-						"type": "string",
-						"description": "Recipient: phone number in any format, or a WhatsApp chat/group ID"
-					},
-					"message": {
-						"type": "string",
-						"description": "Plain-text message body"
-					}
-				},
-				"required": [
-					"to",
-					"message"
-				],
-				"type": "object",
-				"additionalProperties": false
+			"ClientStatus": {
+				"type": "string",
+				"enum": [
+					"initializing",
+					"qr_ready",
+					"ready",
+					"disconnected",
+					"auth_failure"
+				]
 			},
-			"BadRequestError": {
-				"description": "400 Bad Request — missing or invalid input fields.\nShared across controllers so tsoa sees exactly one model definition.",
+			"ClientStateResponse": {
 				"properties": {
-					"error": {
-						"type": "string"
+					"waState": {
+						"type": "string",
+						"description": "Raw WAState value from whatsapp-web.js (e.g. \"CONNECTED\", \"DISCONNECTED\", \"UNPAIRED\")"
 					},
-					"retryAfterSeconds": {
-						"type": "number",
-						"format": "double",
-						"description": "Seconds until the client is expected to be ready (503 responses only)"
-					}
-				},
-				"required": [
-					"error"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"MediaSentResponse": {
-				"properties": {
-					"ok": {
+					"status": {
+						"$ref": "#/components/schemas/ClientStatus",
+						"description": "Simplified client status mapped to the API's ClientStatus type"
+					},
+					"qrAvailable": {
 						"type": "boolean",
-						"enum": [
-							true
-						],
-						"nullable": false
+						"description": "Whether a QR code is available for pairing"
 					},
-					"id": {
-						"type": "string"
-					},
-					"to": {
-						"type": "string"
-					},
-					"filename": {
-						"type": "string"
-					},
-					"mimeType": {
-						"type": "string"
-					},
-					"timestamp": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"ok",
-					"id",
-					"to",
-					"filename",
-					"mimeType",
-					"timestamp"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"HealthResponse": {
-				"description": "GET /health response",
-				"properties": {
-					"ok": {
-						"type": "boolean"
-					},
-					"whatsapp": {
-						"$ref": "#/components/schemas/ClientStatus"
-					},
-					"ts": {
-						"type": "string",
-						"description": "ISO-8601 UTC timestamp"
-					}
-				},
-				"required": [
-					"ok",
-					"whatsapp",
-					"ts"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ContactItem": {
-				"properties": {
-					"id": {
-						"type": "string",
-						"description": "WhatsApp contact ID"
-					},
-					"name": {
-						"type": "string"
-					},
-					"pushname": {
-						"type": "string"
-					},
-					"shortName": {
-						"type": "string"
-					},
-					"number": {
-						"type": "string"
-					},
-					"isGroup": {
-						"type": "boolean"
-					},
-					"isWAContact": {
-						"type": "boolean"
-					},
-					"isMyContact": {
-						"type": "boolean"
-					}
-				},
-				"required": [
-					"id",
-					"pushname",
-					"number",
-					"isGroup",
-					"isWAContact",
-					"isMyContact"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ContactsResponse": {
-				"properties": {
-					"count": {
-						"type": "number",
-						"format": "double"
-					},
-					"contacts": {
-						"items": {
-							"$ref": "#/components/schemas/ContactItem"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"count",
-					"contacts"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"PhoneCheckResult": {
-				"properties": {
-					"whatsappId": {
-						"type": "string",
-						"description": "WhatsApp chat ID that was checked, e.g. \"15551234567@c.us\""
-					},
-					"registered": {
-						"type": "boolean",
-						"description": "Whether this number is registered on WhatsApp"
-					}
-				},
-				"required": [
-					"whatsappId",
-					"registered"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"PhoneCheckResponse": {
-				"properties": {
-					"input": {
-						"type": "string",
-						"description": "Original phone input as provided"
-					},
-					"results": {
-						"items": {
-							"$ref": "#/components/schemas/PhoneCheckResult"
-						},
-						"type": "array",
-						"description": "All candidate IDs that were checked (one if country code detected, two if not)"
-					},
-					"registered": {
-						"type": "boolean",
-						"description": "True if ANY candidate was found on WhatsApp"
-					},
-					"whatsappId": {
+					"qrDataURL": {
 						"type": "string",
 						"nullable": true,
-						"description": "The first registered WhatsApp ID found, or null if none found"
-					}
-				},
-				"required": [
-					"input",
-					"results",
-					"registered",
-					"whatsappId"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"SaveContactResponse": {
-				"properties": {
-					"ok": {
+						"description": "QR code as a PNG data URL (only present when qrAvailable is true)"
+					},
+					"ready": {
 						"type": "boolean",
-						"enum": [
-							true
-						],
-						"nullable": false
-					},
-					"id": {
-						"type": "string",
-						"description": "WhatsApp ID of the saved contact (e.g. \"16073041892@c.us\")"
-					},
-					"phone": {
-						"type": "string",
-						"description": "The phone number that was saved"
-					},
-					"firstName": {
-						"type": "string",
-						"description": "Contact's first name"
+						"description": "Convenience flag: true when the client is fully connected and ready"
 					}
 				},
 				"required": [
-					"ok",
-					"id",
-					"phone",
-					"firstName"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"SaveContactBody": {
-				"properties": {
-					"phone": {
-						"type": "string",
-						"description": "Phone number in digits only (e.g. \"16073041892\"). Include country code."
-					},
-					"firstName": {
-						"type": "string",
-						"description": "Contact's first name"
-					},
-					"lastName": {
-						"type": "string",
-						"description": "Contact's last name (optional)"
-					},
-					"syncToAddressbook": {
-						"type": "boolean",
-						"description": "If true, also sync to the phone's address book. Default false."
-					}
-				},
-				"required": [
-					"phone",
-					"firstName"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"LastMessage": {
-				"properties": {
-					"body": {
-						"type": "string"
-					},
-					"type": {
-						"type": "string"
-					},
-					"timestamp": {
-						"type": "number",
-						"format": "double",
-						"description": "Unix epoch seconds"
-					},
-					"fromMe": {
-						"type": "boolean"
-					}
-				},
-				"required": [
-					"body",
-					"type",
-					"timestamp",
-					"fromMe"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ChatItem": {
-				"properties": {
-					"id": {
-						"type": "string",
-						"description": "WhatsApp chat ID, e.g. \"16073041892@c.us\" or \"123456789@g.us\""
-					},
-					"name": {
-						"type": "string"
-					},
-					"isGroup": {
-						"type": "boolean"
-					},
-					"phone": {
-						"type": "string",
-						"nullable": true,
-						"description": "Contact's phone number (digits only, e.g. \"16073041892\"), resolved from\nthe chat ID. `null` for group chats, and for LID-addressed 1:1 chats\n(e.g. \"108555483001085@lid\") when the LID↔phone-number mapping hasn't\nbeen resolved locally yet by WhatsApp Web."
-					},
-					"unreadCount": {
-						"type": "number",
-						"format": "double"
-					},
-					"timestamp": {
-						"type": "number",
-						"format": "double",
-						"description": "Unix epoch seconds of last activity"
-					},
-					"lastMessage": {
-						"allOf": [
-							{
-								"$ref": "#/components/schemas/LastMessage"
-							}
-						],
-						"nullable": true
-					}
-				},
-				"required": [
-					"id",
-					"name",
-					"isGroup",
-					"phone",
-					"unreadCount",
-					"timestamp",
-					"lastMessage"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ChatsResponse": {
-				"properties": {
-					"count": {
-						"type": "number",
-						"format": "double"
-					},
-					"chats": {
-						"items": {
-							"$ref": "#/components/schemas/ChatItem"
-						},
-						"type": "array"
-					},
-					"hasMore": {
-						"type": "boolean",
-						"description": "True when more chats exist beyond the current page"
-					}
-				},
-				"required": [
-					"count",
-					"chats",
-					"hasMore"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"MessageItem": {
-				"properties": {
-					"id": {
-						"type": "string",
-						"description": "Serialised message ID"
-					},
-					"from": {
-						"type": "string"
-					},
-					"to": {
-						"type": "string"
-					},
-					"body": {
-						"type": "string"
-					},
-					"type": {
-						"type": "string"
-					},
-					"timestamp": {
-						"type": "number",
-						"format": "double",
-						"description": "Unix epoch seconds"
-					},
-					"fromMe": {
-						"type": "boolean"
-					},
-					"hasMedia": {
-						"type": "boolean"
-					},
-					"author": {
-						"type": "string",
-						"nullable": true,
-						"description": "Present for group messages; null otherwise"
-					},
-					"mimeType": {
-						"type": "string",
-						"description": "MIME type of attached media — only present when hasMedia is true"
-					},
-					"filename": {
-						"type": "string",
-						"description": "Original filename of attached media — only present when hasMedia is true"
-					}
-				},
-				"required": [
-					"id",
-					"from",
-					"to",
-					"body",
-					"type",
-					"timestamp",
-					"fromMe",
-					"hasMedia",
-					"author"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"MessagesResponse": {
-				"properties": {
-					"chatId": {
-						"type": "string"
-					},
-					"count": {
-						"type": "number",
-						"format": "double"
-					},
-					"messages": {
-						"items": {
-							"$ref": "#/components/schemas/MessageItem"
-						},
-						"type": "array"
-					},
-					"hasMore": {
-						"type": "boolean",
-						"description": "True when more messages exist beyond the current page"
-					}
-				},
-				"required": [
-					"chatId",
-					"count",
-					"messages",
-					"hasMore"
+					"waState",
+					"status",
+					"qrAvailable",
+					"qrDataURL",
+					"ready"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -813,38 +304,7 @@
 		"contact": {}
 	},
 	"paths": {
-		"/status": {
-			"get": {
-				"operationId": "FetchStatus",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/StatusResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Get the current WhatsApp client connection status.\n\nPossible states:\n- `initializing` — client is starting up / connecting to Chromium\n- `qr_ready` — QR code is available at GET /qr, waiting for phone scan\n- `authenticated` — credentials accepted, WhatsApp Web stores loading\n- `ready` — fully operational, API accepts all requests\n- `disconnected` — connection lost, reconnect scheduled\n- `auth_failure` — authentication error, manual intervention needed",
-				"summary": "Get WhatsApp client status",
-				"tags": [
-					"System"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": []
-			}
-		},
-		"/single/chats/all": {
+		"/single/chats/list": {
 			"get": {
 				"operationId": "GetChats",
 				"responses": {
@@ -865,7 +325,11 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [
 					{
 						"in": "query",
@@ -885,6 +349,15 @@
 							"default": 0,
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "includeArchived",
+						"required": false,
+						"schema": {
+							"default": false,
+							"type": "boolean"
 						}
 					}
 				]
@@ -926,7 +399,72 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/chats/{id}/read": {
+			"post": {
+				"operationId": "MarkAsRead",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [
 					{
 						"in": "path",
@@ -952,77 +490,6 @@
 										"$ref": "#/components/schemas/MessageDto"
 									},
 									"type": "array"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"description": "Fetch messages for a specific chat.\nSupports pagination via `limit` and `offset`.",
-				"tags": [
-					"Single"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "limit",
-						"required": false,
-						"schema": {
-							"default": 50,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"in": "query",
-						"name": "offset",
-						"required": false,
-						"schema": {
-							"default": 0,
-							"format": "double",
-							"type": "number"
-						}
-					}
-				]
-			}
-		},
-		"/single/messages/{id}/media": {
-			"get": {
-				"operationId": "DownloadMedia",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "string",
-									"format": "byte"
 								}
 							}
 						}
@@ -1064,11 +531,100 @@
 						}
 					}
 				},
-				"description": "Download media attached to a message.\nReturns the raw binary data with the correct Content-Type header.\nThe `id` parameter is the message's serialized ID (e.g. \"true_16073041892@c.us_3EB0F1F3ABC\").",
+				"description": "Fetch messages for a specific chat.\nSupports pagination via `limit` and `offset`.\n\n`fetchMessages` returns the most recent N messages, oldest-first.\nPagination counts from the newest end:\n  - offset=0  → the most recent `limit` messages\n  - offset=50 → the next 50 messages going back\n\n0.5: Scrollback is capped at 200 messages total.",
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"default": 0,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/single/messages/{id}/media": {
+			"get": {
+				"operationId": "DownloadMedia",
+				"responses": {
+					"204": {
+						"description": "No content"
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"error": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"error"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Download media attached to a message.\nReturns the raw binary data with the correct Content-Type header.\nThe `id` parameter is the message's serialized ID (e.g. \"true_16073041892@c.us_3EB0F1F3ABC\").\n\n0.2: Use",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [
 					{
 						"in": "path",
@@ -1090,31 +646,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"ready": {
-											"type": "boolean",
-											"description": "Convenience flag: true when the client is fully connected and ready"
-										},
-										"qrAvailable": {
-											"type": "boolean",
-											"description": "Whether a QR code is available for pairing"
-										},
-										"status": {
-											"$ref": "#/components/schemas/ClientStatus",
-											"description": "Simplified client status mapped to the API's ClientStatus type"
-										},
-										"waState": {
-											"type": "string",
-											"description": "Raw WAState value from whatsapp-web.js (e.g. \"CONNECTED\", \"DISCONNECTED\", \"UNPAIRED\")"
-										}
-									},
-									"required": [
-										"ready",
-										"qrAvailable",
-										"status",
-										"waState"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/ClientStateResponse"
 								}
 							}
 						}
@@ -1124,7 +656,11 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": []
 			}
 		},
@@ -1164,7 +700,11 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [
 					{
 						"in": "path",
@@ -1216,7 +756,11 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [],
 				"requestBody": {
 					"required": true,
@@ -1269,7 +813,11 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [],
 				"requestBody": {
 					"required": true,
@@ -1331,7 +879,11 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [
 					{
 						"in": "path",
@@ -1384,6 +936,10 @@
 											],
 											"nullable": true
 										},
+										"whatsappId": {
+											"type": "string",
+											"nullable": true
+										},
 										"phone": {
 											"type": "string"
 										}
@@ -1391,6 +947,7 @@
 									"required": [
 										"registered",
 										"contactInfo",
+										"whatsappId",
 										"phone"
 									],
 									"type": "object"
@@ -1410,24 +967,6 @@
 									},
 									"required": [
 										"error"
-									],
-									"type": "object"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"message"
 									],
 									"type": "object"
 								}
@@ -1461,735 +1000,15 @@
 				"tags": [
 					"Single"
 				],
-				"security": [],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
 				"parameters": [
 					{
 						"in": "query",
 						"name": "phone",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/qr": {
-			"get": {
-				"operationId": "GetQr",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/QrJsonResponse"
-								}
-							}
-						}
-					},
-					"409": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/QrUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Get the current WhatsApp QR code.\n\nReturns `409` when no QR is available (already authenticated, or client\nis still initialising — check GET /status first).",
-				"tags": [
-					"System"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "Output format: `json` returns a base64 data-URL; `png` returns raw image bytes",
-						"in": "query",
-						"name": "format",
-						"required": false,
-						"schema": {
-							"default": "json",
-							"type": "string",
-							"enum": [
-								"png",
-								"json"
-							]
-						}
-					}
-				]
-			}
-		},
-		"/messages/{messageId}/media": {
-			"get": {
-				"operationId": "GetMedia",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"type": "string",
-											"format": "byte"
-										},
-										{}
-									]
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Download media attached to a message.\n\nReturns the raw binary media file with the correct `Content-Type` header.\nThe response is a binary stream (not JSON). Use the `mimeType` and `filename`\nfields from the parent message (returned by `GET /chats/{chatId}/messages`)\nto determine how to render the bubble before fetching the binary.\n\nReturns `404` if the message has no media, or `404` if the message is not found.",
-				"tags": [
-					"Messaging"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "Serialised message ID (e.g. `true_16073041892@c.us_ABCDEF12345_out`)",
-						"in": "path",
-						"name": "messageId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/send": {
-			"post": {
-				"operationId": "SendMessage",
-				"responses": {
-					"201": {
-						"description": "Message sent",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/MessageSentResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/BadRequestError"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Send a plain-text WhatsApp message.\n\nThe `to` field accepts any common phone number format — the API auto-normalises\nit to the `<digits>@c.us` format required by WhatsApp:\n- `\"+1 (607) 304-1892\"` → `\"16073041892@c.us\"`\n- `\"16073041892\"`        → `\"16073041892@c.us\"`\n- `\"16073041892@c.us\"`   → pass-through\n- `\"123456789@g.us\"`     → pass-through (group ID)",
-				"tags": [
-					"Messaging"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/SendMessageBody"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/send-media": {
-			"post": {
-				"operationId": "SendMedia",
-				"responses": {
-					"201": {
-						"description": "Media sent",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/MediaSentResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/BadRequestError"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Send a media file to a WhatsApp contact or group.\n\nUse `multipart/form-data` with the following fields:\n- `to` — recipient phone number or WhatsApp chat ID (required)\n- `file` — binary file to send (required, max 64 MB)\n- `caption` — optional text caption displayed below the media\n\nSupported formats: images (JPEG, PNG, GIF, WebP), audio (MP3, OGG, AAC),\nvideo (MP4), documents (PDF, DOCX, XLSX, …).",
-				"tags": [
-					"Messaging"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"multipart/form-data": {
-							"schema": {
-								"type": "object",
-								"properties": {
-									"to": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string",
-										"format": "binary"
-									},
-									"caption": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"to",
-									"file"
-								]
-							}
-						}
-					}
-				}
-			}
-		},
-		"/health": {
-			"get": {
-				"operationId": "GetHealth",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/HealthResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Public health check — no Bearer token required",
-				"tags": [
-					"System"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/contacts": {
-			"get": {
-				"operationId": "GetContacts",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ContactsResponse"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "List all WhatsApp contacts saved on the connected account.",
-				"tags": [
-					"Contacts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "Maximum contacts to return (1–1000, default 200)",
-						"in": "query",
-						"name": "limit",
-						"required": false,
-						"schema": {
-							"default": 200,
-							"format": "double",
-							"type": "number"
-						}
-					}
-				]
-			},
-			"post": {
-				"operationId": "SaveContact",
-				"responses": {
-					"201": {
-						"description": "Contact saved",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/SaveContactResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/BadRequestError"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Save a new contact to the WhatsApp address book.\n\nThe `phone` field should be a number with country code (digits only, e.g.\n`\"16073041892\"`). The contact will be saved to the WhatsApp cloud and\noptionally synced to the phone's address book.",
-				"tags": [
-					"Contacts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"description": "Contact details",
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/SaveContactBody",
-								"description": "Contact details"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/contacts/check": {
-			"get": {
-				"operationId": "CheckPhone",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/PhoneCheckResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/BadRequestError"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Check whether a phone number is registered on WhatsApp.\n\nIf no country code is detected (stripped input has ≤ 10 digits and no\nleading `+`), **both** `+1` (US/Canada) and `+52` (Mexico) are tried\nautomatically and all results are returned.\n\nExamples of accepted formats:\n- `+1 (555) 123-4567`  → country code detected, one check\n- `5551234567`          → 10 digits, no `+` → checks +1 and +52\n- `526441234567`        → 12 digits → country code detected, one check",
-				"tags": [
-					"Contacts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "Phone number in any format.",
-						"in": "query",
-						"name": "phone",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/contacts/{contactId}/avatar": {
-			"get": {
-				"operationId": "GetAvatar",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"type": "string",
-											"format": "byte"
-										},
-										{}
-									]
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Get the profile picture (avatar) for a WhatsApp contact.\n\nProxies the profile picture from WhatsApp's CDN and returns the raw image\nbytes. Returns `404` if the contact has no profile picture set.\n\nThe frontend should call this endpoint lazily per visible row and fall back\nto showing coloured initials on `404` or network error.",
-				"tags": [
-					"Contacts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "WhatsApp contact ID, e.g. `16073041892@c.us`",
-						"in": "path",
-						"name": "contactId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/chats": {
-			"get": {
-				"operationId": "GetChats",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ChatsResponse"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "List all WhatsApp chats, ordered by most-recent activity (descending timestamp).\n\nPagination uses an offset-based approach — the backend sorts all chats by\ntimestamp descending first, then slices `limit` items starting at `offset`.\n`hasMore` is `true` when there are additional chats beyond the current page.",
-				"tags": [
-					"Chats"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "Maximum number of chats to return (1–200, default 50)",
-						"in": "query",
-						"name": "limit",
-						"required": false,
-						"schema": {
-							"default": 50,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"description": "Number of chats to skip (0-based, default 0)",
-						"in": "query",
-						"name": "offset",
-						"required": false,
-						"schema": {
-							"default": 0,
-							"format": "double",
-							"type": "number"
-						}
-					}
-				]
-			}
-		},
-		"/chats/{chatId}/messages": {
-			"get": {
-				"operationId": "GetChatMessages",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/MessagesResponse"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Fetch message history for a specific chat.\n\nUses a custom implementation that bypasses the SDK's getChatById() which\nhas serialization issues with certain chat types (LID-based contacts, etc.).\n\nPagination uses a cursor-based approach — pass the `before` parameter with\nthe Unix-epoch timestamp of the oldest message currently displayed to get\nthe next page of older messages. `hasMore` is `true` when more older messages\nexist beyond the current page.",
-				"tags": [
-					"Chats"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "WhatsApp chat ID, e.g. `16073041892@c.us` or `123456789@g.us`",
-						"in": "path",
-						"name": "chatId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"description": "Number of messages to fetch (1–200, default 50)",
-						"in": "query",
-						"name": "limit",
-						"required": false,
-						"schema": {
-							"default": 50,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"description": "Optional cursor — only return messages older than this Unix-epoch timestamp",
-						"in": "query",
-						"name": "before",
-						"required": false,
-						"schema": {
-							"format": "double",
-							"type": "number"
-						}
-					}
-				]
-			}
-		},
-		"/chats/{chatId}/read": {
-			"post": {
-				"operationId": "MarkChatRead",
-				"responses": {
-					"200": {
-						"description": "Chat marked as read",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"ok": {
-											"type": "boolean",
-											"enum": [
-												true
-											],
-											"nullable": false
-										}
-									},
-									"required": [
-										"ok"
-									],
-									"type": "object"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"503": {
-						"description": "",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ServiceUnavailableError"
-								}
-							}
-						}
-					}
-				},
-				"description": "Mark all messages in a chat as read.\n\nSends a \"seen\" acknowledgement to WhatsApp for the given chat, clearing\nthe unread badge on the phone and the API.",
-				"tags": [
-					"Chats"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "WhatsApp chat ID, e.g. `16073041892@c.us` or `123456789@g.us`",
-						"in": "path",
-						"name": "chatId",
 						"required": true,
 						"schema": {
 							"type": "string"

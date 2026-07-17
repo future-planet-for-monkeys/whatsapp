@@ -1,5 +1,6 @@
 import { Client, ClientOptions, Message } from "whatsapp-web.js";
 import { ClientOptionFactory } from "./ClientOptionFactory";
+import QRCode from "qrcode";
 
 interface ServiceOptions {
     cdpUrl: string;
@@ -19,11 +20,13 @@ export interface ContactInfoResult {
 }
 
 export class WhatsAppClientWithCache extends Client {
+    /** Latest QR code as a PNG data URL, or null if not available. */
+    qrDataURL: string | null = null;
+
     private avatarCache: Map<string, { url: string | null; timestamp: number }> = new Map();
     private avatarCacheTTL: number = 5 * 60 * 1000; // 5 minutes
     private avatarResolveQueue: string[] = [];
     private isResolvingAvatars: boolean = false;
-
     private async resolveAvatarQueue(): Promise<void> {
         if (this.isResolvingAvatars) {
             return;
@@ -215,6 +218,20 @@ export class WhatsappClientFactory {
                 : await ClientOptionFactory.getLocalPuppeteerClientOptions();
 
         const client = new WhatsAppClientWithCache(clientOptions);
+
+        // Listen for QR events and store as PNG data URL
+        client.on("qr", (qr: string) => {
+            QRCode.toDataURL(qr, { margin: 1 }).then((url: string) => {
+                client.qrDataURL = url;
+            }).catch((err: Error) => {
+                console.error("[WhatsAppService] Failed to generate QR data URL:", err);
+            });
+        });
+
+        // Clear QR when authenticated
+        client.on("authenticated", () => {
+            client.qrDataURL = null;
+        });
 
         await client.initialize();
 

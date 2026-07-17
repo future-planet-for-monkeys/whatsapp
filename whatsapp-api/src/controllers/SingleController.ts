@@ -1,14 +1,29 @@
-import { Controller, Get, Query, Route, Tags, Security, Res, type TsoaResponse, Path, Post, Body, UploadedFile } from "tsoa";
+import { Controller, Get, Query, Route, Tags, Security, Res, type TsoaResponse, Path, Post, Body, UploadedFile, Request, Produces } from "tsoa";
 import { type Chat, ChatId, Client, Message, MessageId, MessageMedia, MessageTypes, WAState } from "whatsapp-web.js";
 import { CLIENT } from "../client";
 import { WhatsAppClientWithCache } from "../services/WhatsAppService.v2";
+import type { Request as ExpressRequest } from "express";
 
-type AllowedMessageTypes =
-    | MessageTypes.TEXT
-    | MessageTypes.IMAGE
-    | MessageTypes.VIDEO
-    | MessageTypes.AUDIO
-    | MessageTypes.DOCUMENT;
+// ── 0.8: Widen the union to match real-world WhatsApp types ────────────────
+export type AllowedMessageTypes =
+    | MessageTypes.TEXT       // 'chat'
+    | MessageTypes.IMAGE      // 'image'
+    | MessageTypes.VIDEO      // 'video'
+    | MessageTypes.AUDIO      // 'audio'
+    | MessageTypes.VOICE      // 'ptt' — voice notes, extremely common
+    | MessageTypes.DOCUMENT   // 'document'
+    | MessageTypes.STICKER    // 'sticker'
+    | 'unsupported';
+
+const RENDERABLE = new Set<string>([
+    MessageTypes.TEXT, MessageTypes.IMAGE, MessageTypes.VIDEO,
+    MessageTypes.AUDIO, MessageTypes.VOICE, MessageTypes.DOCUMENT,
+    MessageTypes.STICKER,
+]);
+
+function toAllowedType(type: string): AllowedMessageTypes {
+    return RENDERABLE.has(type) ? (type as AllowedMessageTypes) : 'unsupported';
+}
 
 export class ChatIdDto {
     constructor(chatId: ChatId) {
@@ -31,6 +46,8 @@ export interface ChatDto {
     unreadCount: number;
     lastMessage: MessageDto | null;
     pinned: boolean;
+    /** Unix epoch seconds — added in Phase 0.3 */
+    timestamp: number;
 }
 
 export interface MessageIdDto {
@@ -57,7 +74,6 @@ export interface ContactInfoDto {
     avatarUrl: string | null;
 }
 
-
 async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImmediately = false): Promise<ChatDto> {
     return {
         archived: chat.archived,
@@ -67,6 +83,7 @@ async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImm
         unreadCount: chat.unreadCount,
         lastMessage: chat.lastMessage ? await toMessageDto(client, chat.lastMessage, resolveImmediately) : null,
         pinned: chat.pinned,
+        timestamp: chat.timestamp,
     };
 }
 
@@ -82,7 +99,7 @@ async function toMessageDto(client: WhatsAppClientWithCache, message: Message, r
         },
         body: message.body,
         hasMedia: message.hasMedia,
-        type: message.type as AllowedMessageTypes,
+        type: toAllowedType(message.type),
         from: await toContactInfoDto(client, contactInfo, resolveImmediately),
         timestamp: message.timestamp,
     };
@@ -100,18 +117,33 @@ async function toContactInfoDto(client: WhatsAppClientWithCache, contactInfo: {
     };
 }
 
+// ── 0.10: Remove 'authenticated' — no branch produces it ───────────────────
 export type ClientStatus =
     | 'initializing'
     | 'qr_ready'
-    | 'authenticated'
     | 'ready'
     | 'disconnected'
     | 'auth_failure';
 
+export interface ClientStateResponse {
+    /** Raw WAState value from whatsapp-web.js (e.g. "CONNECTED", "DISCONNECTED", "UNPAIRED") */
+    waState: string;
+    /** Simplified client status mapped to the API's ClientStatus type */
+    status: ClientStatus;
+    /** Whether a QR code is available for pairing */
+    qrAvailable: boolean;
+    /** QR code as a PNG data URL (only present when qrAvailable is true) */
+    qrDataURL: string | null;
+    /** Convenience flag: true when the client is fully connected and ready */
+    ready: boolean;
+}
+
 /**
  * Map a raw WAState value to the simplified ClientStatus used by the API.
+ * 0.10: Handle null explicitly — don't rely on the default branch.
  */
-function mapWAStateToClientStatus(state: WAState): ClientStatus {
+function mapWAStateToClientStatus(state: WAState | null): ClientStatus {
+    if (state === null) return 'initializing';
     switch (state) {
         case WAState.CONNECTED:
             return 'ready';
@@ -136,26 +168,11 @@ function mapWAStateToClientStatus(state: WAState): ClientStatus {
 }
 
 /**
- * Parse a message serialized ID (e.g. "true_16073041892@c.us_3EB0F1F3ABC")
- * into its components: fromMe, remote (chat ID), and the message-specific ID.
- */
-function parseMessageId(serialized: string): { fromMe: boolean; remote: string; id: string } | null {
-    // Format: {fromMe}_{remote}_{id}
-    // fromMe is always "true" or "false"
-    const match = serialized.match(/^(true|false)_(.+)_(.+)$/);
-    if (!match) return null;
-    return {
-        fromMe: match[1] === 'true',
-        remote: match[2],
-        id: match[3],
-    };
-}
-
-/**
  * Single-call endpoints — fetch all data in one shot, no pagination overhead.
  */
 @Route('single')
 @Tags('Single')
+@Security('basicAuth')
 export class SingleController extends Controller {
     private client: Promise<WhatsAppClientWithCache>;
 
@@ -164,7 +181,8 @@ export class SingleController extends Controller {
         this.client = CLIENT;
     }
 
-    @Get('chats/all')
+    // ── 0.9: Renamed from 'chats/all' to 'chats/list' ─────────────────────
+    @Get('chats/list')
     async getChats(
         @Query() limit = 50,
         @Query() offset = 0,
@@ -172,11 +190,13 @@ export class SingleController extends Controller {
     ): Promise<ChatDto[]> {
         const client = await this.client;
         const chats = await client.getChats();
+        // 0.3: Sort descending by timestamp before slicing
+        const sorted = chats
+            .filter(chat => includeArchived || !chat.archived)
+            .sort((a, b) => b.timestamp - a.timestamp);
         return await Promise.all(
-            chats
-                .filter(chat => includeArchived || !chat.archived)
-                .slice(offset, offset + limit)
-                .map(chat => toChatDto(client, chat, true))
+            // 0.4: resolveImmediately = false for list endpoints
+            sorted.slice(offset, offset + limit).map(chat => toChatDto(client, chat, false))
         );
     }
 
@@ -193,9 +213,29 @@ export class SingleController extends Controller {
         return await toChatDto(client, chat, true);
     }
 
+    // ── 0.7: Mark-as-read endpoint ─────────────────────────────────────────
+    @Post('chats/{id}/read')
+    async markAsRead(
+        @Path() id: string,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+    ): Promise<{ success: boolean }> {
+        const client = await this.client;
+        const chat = await client.getChatById(id);
+        if (!chat) return notFoundResponse(404, { message: 'Chat not found' });
+        await chat.sendSeen();
+        return { success: true };
+    }
+
     /**
      * Fetch messages for a specific chat.
      * Supports pagination via `limit` and `offset`.
+     *
+     * `fetchMessages` returns the most recent N messages, oldest-first.
+     * Pagination counts from the newest end:
+     *   - offset=0  → the most recent `limit` messages
+     *   - offset=50 → the next 50 messages going back
+     *
+     * 0.5: Scrollback is capped at 200 messages total.
      */
     @Get('chats/{id}/messages')
     async getChatMessages(
@@ -203,17 +243,25 @@ export class SingleController extends Controller {
         @Query() limit = 50,
         @Query() offset = 0,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+        @Res() badRequest: TsoaResponse<400, { error: string }>,
     ): Promise<MessageDto[]> {
         const client = await this.client;
         const chat = await client.getChatById(id);
         if (!chat) {
             return notFoundResponse(404, { message: 'Chat not found' });
         }
-        // Fetch enough messages to cover the offset + limit
+        // 0.5: Reject early if scrollback exceeds 200
+        if (offset + limit > 200) {
+            return badRequest(400, { error: 'Scrollback is limited to 200 messages.' });
+        }
+        // Fetch enough messages to cover the offset + limit (counted from newest)
         const messages = await chat.fetchMessages({ limit: offset + limit });
-        const sliced = messages.slice(offset, offset + limit);
+        const end = messages.length - offset;
+        const start = Math.max(0, end - limit);
+        const sliced = messages.slice(start, end);
         return await Promise.all(
-            sliced.map(msg => toMessageDto(client, msg, true))
+            // 0.4: resolveImmediately = false for list endpoints
+            sliced.map(msg => toMessageDto(client, msg, false))
         );
     }
 
@@ -221,48 +269,29 @@ export class SingleController extends Controller {
      * Download media attached to a message.
      * Returns the raw binary data with the correct Content-Type header.
      * The `id` parameter is the message's serialized ID (e.g. "true_16073041892@c.us_3EB0F1F3ABC").
+     *
+     * 0.2: Use @Res() TsoaResponse pattern + raw res.end() to avoid TSOA's JSON serialization.
      */
     @Get('messages/{id}/media')
+    @Produces('application/octet-stream')
     async downloadMedia(
+        @Request() req: ExpressRequest,
         @Path() id: string,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
         @Res() badRequest: TsoaResponse<400, { error: string }>,
-    ): Promise<Buffer> {
+    ): Promise<void> {
         const client = await this.client;
-
-        // Parse the serialized message ID to extract the chat remote
-        const parsed = parseMessageId(id);
-        if (!parsed) {
-            return badRequest(400, { error: 'Invalid message ID format. Expected: {fromMe}_{remote}_{id}' });
-        }
-
-        // Get the chat and find the message
-        const chat = await client.getChatById(parsed.remote);
-        if (!chat) {
-            return notFoundResponse(404, { message: 'Chat not found for this message' });
-        }
-
-        // Fetch recent messages and find the one matching our ID
-        const messages = await chat.fetchMessages({ limit: 100 });
-        const message = messages.find(m => m.id._serialized === id || m.id.id === parsed.id);
-        if (!message) {
-            return notFoundResponse(404, { message: 'Message not found' });
-        }
-
-        if (!message.hasMedia) {
-            return badRequest(400, { error: 'Message has no media' });
-        }
-
+        const message = await client.getMessageById(id);
+        if (!message) return notFoundResponse(404, { message: 'Message not found' });
+        if (!message.hasMedia) return badRequest(400, { error: 'Message has no media' });
         const media = await message.downloadMedia();
-        if (!media) {
-            return notFoundResponse(404, { message: 'Media not available or could not be downloaded' });
-        }
-
-        this.setHeader('Content-Type', media.mimetype);
+        if (!media) return notFoundResponse(404, { message: 'Media could not be downloaded' });
+        const res = req.res!;
+        res.setHeader('Content-Type', media.mimetype);
         if (media.filename) {
-            this.setHeader('Content-Disposition', `attachment; filename="${media.filename}"`);
+            res.setHeader('Content-Disposition', `inline; filename="${media.filename}"`);
         }
-        return Buffer.from(media.data, 'base64');
+        res.end(Buffer.from(media.data, 'base64'));
     }
 
     /**
@@ -270,23 +299,16 @@ export class SingleController extends Controller {
      * Returns the raw WAState value along with a simplified status and readiness flag.
      */
     @Get('client/state')
-    async getClientState(): Promise<{
-        /** Raw WAState value from whatsapp-web.js (e.g. "CONNECTED", "DISCONNECTED", "UNPAIRED") */
-        waState: string;
-        /** Simplified client status mapped to the API's ClientStatus type */
-        status: ClientStatus;
-        /** Whether a QR code is available for pairing */
-        qrAvailable: boolean;
-        /** Convenience flag: true when the client is fully connected and ready */
-        ready: boolean;
-    }> {
+    async getClientState(): Promise<ClientStateResponse> {
         const client = await this.client;
         try {
             const state = await client.getState();
+            const isQrState = state === WAState.UNPAIRED || state === WAState.UNPAIRED_IDLE || state === WAState.PAIRING;
             return {
                 waState: state,
                 status: mapWAStateToClientStatus(state),
-                qrAvailable: state === WAState.UNPAIRED || state === WAState.UNPAIRED_IDLE || state === WAState.PAIRING,
+                qrAvailable: isQrState,
+                qrDataURL: isQrState ? client.qrDataURL : null,
                 ready: state === WAState.CONNECTED,
             };
         } catch (error) {
@@ -294,6 +316,7 @@ export class SingleController extends Controller {
                 waState: 'UNKNOWN',
                 status: 'initializing',
                 qrAvailable: false,
+                qrDataURL: null,
                 ready: false,
             };
         }
@@ -335,12 +358,7 @@ export class SingleController extends Controller {
         if (!messageResult) {
             return notFoundResponse(404, { message: 'Message not sent' });
         }
-        const contactInfo = await client.resolveContactInfo(messageResult.from, true);
-        return {
-            ...messageResult,
-            from: await toContactInfoDto(client, contactInfo, true),
-            type: messageResult.type as AllowedMessageTypes,
-        };
+        return toMessageDto(client, messageResult, true);
     }
 
     @Post('messages/{chatId}/send-media')
@@ -359,22 +377,18 @@ export class SingleController extends Controller {
         if (!messageResult) {
             return notFoundResponse(404, { message: 'Media not sent' });
         }
-        const contactInfo = await client.resolveContactInfo(messageResult.from, true);
-        return {
-            ...messageResult,
-            from: await toContactInfoDto(client, contactInfo, true),
-            type: messageResult.type as AllowedMessageTypes,
-        };
+        return toMessageDto(client, messageResult, true);
     }
 
+    // ── 0.6: Return whatsappId in check response ───────────────────────────
     @Get('check')
     async checkPhone(
         @Query() phone: string,
-        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
         @Res() badRequest: TsoaResponse<400, { error: string }>,
         @Res() serviceUnavailable: TsoaResponse<503, { error: string; retryAfterSeconds: number }>,
     ): Promise<{
         phone: string;
+        whatsappId: string | null;
         contactInfo: ContactInfoDto | null;
         registered: boolean;
     }> {
@@ -399,6 +413,7 @@ export class SingleController extends Controller {
             const match = results.find((r) => r.contactInfo.lid !== null);
             return {
                 phone,
+                whatsappId: match?.whatsappId ?? null,
                 contactInfo: match ? await toContactInfoDto(client, match.contactInfo, true) : null,
                 registered: match !== undefined,
             };
