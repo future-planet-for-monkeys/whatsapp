@@ -76,6 +76,20 @@ export interface ContactInfoDto {
     avatarUrl: string | null;
 }
 
+async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Chat): Promise<MessageDto | null> {
+    const lastMessagePromise = chat.lastMessage ? toMessageDto(client, chat.lastMessage, false) : null;
+    const lastMessage = await lastMessagePromise;
+    if (lastMessage && lastMessage.type !== 'unsupported') {
+        return lastMessage;
+    }
+    const messages = await chat.fetchMessages({ limit: 10 });
+    const lastAllowed = messages.reverse().find(msg => toAllowedType(msg.type) !== 'unsupported');
+    if (lastAllowed) {
+        return await toMessageDto(client, lastAllowed, false);
+    }
+    return null;
+}
+
 async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImmediately = false): Promise<ChatDto> {
     const avatarUrl = await client.resolveAvatar(chat.id._serialized, resolveImmediately);
     return {
@@ -90,7 +104,7 @@ async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImm
         // server-side and always returns a plain, unencrypted image.
         chatAvatarUrl: avatarUrl?.avatarUrl ? `/avatar/${encodeURIComponent(chat.id._serialized)}` : null,
         unreadCount: chat.unreadCount,
-        lastMessage: chat.lastMessage ? await toMessageDto(client, chat.lastMessage, resolveImmediately) : null,
+        lastMessage: await lastAllowedTypeMessage(client, chat),
         pinned: chat.pinned,
         timestamp: chat.timestamp,
     };
@@ -272,11 +286,13 @@ export class SingleController extends Controller {
         const messages = await chat.fetchMessages({ limit: offset + limit });
         const end = messages.length - offset;
         const start = Math.max(0, end - limit);
-        const sliced = messages.slice(start, end);
-        return await Promise.all(
+        const sliced = messages
+            .slice(start, end)
+        const result = await Promise.all(
             // 0.4: resolveImmediately = false for list endpoints
             sliced.map(msg => toMessageDto(client, msg, false))
-        );
+        ).then(msgs => msgs.filter(msg => msg.type !== 'unsupported')); // Return oldest-first
+        return result;
     }
 
     /**

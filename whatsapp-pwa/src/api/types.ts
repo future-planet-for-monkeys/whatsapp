@@ -44,7 +44,7 @@ export interface ChatDto {
   id: ChatIdDto;
   isGroup: boolean;
   chatAvatarUrl: string | null;
-  name: string;
+  name: string | null;
   unreadCount: number;
   lastMessage: MessageDto | null;
   pinned: boolean;

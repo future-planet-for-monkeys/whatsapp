@@ -4,7 +4,7 @@ import { useAuthedBlob } from '../../hooks/useAuthedBlob';
 
 interface AvatarProps {
   contact: ContactInfoDto | null;
-  name: string;
+  name: string | null | undefined;
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -51,7 +51,8 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
   const finalSrc = objectUrl;
 
   // Initials fallback
-  const getInitials = (str: string): string => {
+  const getInitials = (str: string | null | undefined): string => {
+    if (!str) return '?';
     const trimmed = str.trim();
     if (!trimmed) return '?';
     const parts = trimmed.split(/\s+/);
@@ -64,7 +65,8 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
   };
 
   // Generate a consistent background color based on the name
-  const getBgColor = (str: string): string => {
+  const getBgColor = (str: string | null | undefined): string => {
+    if (!str) return 'bg-gray-500';
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -105,7 +107,7 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
       {finalSrc && !error ? (
         <img
           src={finalSrc}
-          alt={name}
+          alt={name ?? undefined}
           className="w-full h-full object-cover"
           loading="lazy"
           onError={(e) => {
