@@ -1,21 +1,27 @@
 services:
+  # ── Chromium + VNC ──────────────────────────────────────────────────────────
+  # Runs Chromium with a virtual X11 display (Xvfb + fluxbox) + noVNC for
+  # browser-based access. Chrome DevTools Protocol listens on 127.0.0.1:9222
+  # inside the container — the cdp-proxy sidecar makes it network-accessible.
   whatsapp-chromium:
     build:
       context: ./chromium-vnc
-    image: whatsapp-chromium-vnc2:local
+    image: whatsapp-chromium-vnc:local
     container_name: ${INSTANCE_NAME:-whatsapp-neo}-chromium
     restart: unless-stopped
     shm_size: "1gb"
-    # Port 3008 → noVNC HTTP (plain, no HTTPS required)
-    # Port 9223 → Chrome DevTools Protocol (CDP) WebSocket proxy
     ports:
+      # noVNC web client — open http://localhost:${NOVNC_PORT:-3008} to see the
+      # Chromium desktop and scan the WhatsApp Web QR code when pairing.
       - "${NOVNC_PORT:-3008}:6901"
+      # CDP proxy — exposed for the "local" profile (API on host, browser in
+      # Docker). Set CDP_PORT in .env to change, or comment out to disable.
       - "${CDP_PORT:-9223}:9223"
     volumes:
-      # Persist Chromium browser profile so WhatsApp session survives container restarts
+      # Persist Chromium browser profile so WhatsApp session survives restarts.
       - chromium_profile:/chromium-profile
     healthcheck:
-      # Chrome's own CDP endpoint (loopback, pre-nginx) — proves the browser
+      # Chrome's own CDP endpoint (loopback, pre-proxy) — proves the browser
       # process itself is up before anything tries to talk to it.
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:9222/json/version"]
       interval: 5s
@@ -24,12 +30,11 @@ services:
       start_period: 30s
     networks:
       - whatsapp-internal
-      - proxy
 
-  # Nginx reverse-proxy for Chrome DevTools Protocol.
-  # Runs in the same network namespace as whatsapp-chromium (so 127.0.0.1
-  # resolves to Chrome's loopback interface) and listens on 0.0.0.0:9223,
-  # rewriting Host → localhost to bypass Chrome's DNS-rebinding protection.
+  # ── CDP reverse proxy ──────────────────────────────────────────────────────
+  # Sidecar that shares whatsapp-chromium's network namespace. Listens on
+  # 0.0.0.0:9223 (reachable from other containers as whatsapp-chromium:9223)
+  # and rewrites Host → localhost to bypass Chrome's DNS-rebinding protection.
   cdp-proxy:
     image: nginx:alpine
     container_name: ${INSTANCE_NAME:-whatsapp-neo}-cdp-proxy
@@ -41,14 +46,17 @@ services:
       whatsapp-chromium:
         condition: service_healthy
     healthcheck:
-      # End-to-end check through the proxy itself — confirms the Host/Origin
-      # rewrite is working and Chrome answers through it.
+      # End-to-end check through the proxy — confirms Host/Origin rewriting
+      # works and Chrome answers through it.
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9223/json/version"]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 15s
 
+  # ── WhatsApp REST API ──────────────────────────────────────────────────────
+  # Node.js/Express server that wraps whatsapp-web.js. Connects to Chromium
+  # via CDP (ws://whatsapp-chromium:9223). Exposes a REST API for the PWA.
   whatsapp-api:
     build:
       context: ./whatsapp-api
@@ -86,11 +94,11 @@ services:
       start_period: 60s
     networks:
       - whatsapp-internal
-      - proxy
 
-  # Static PWA front-end (React/Vite build served by nginx). Nginx proxies
-  # every "/single" request to whatsapp-api on the internal network, so the
-  # browser only ever talks to one origin — no CORS configuration needed.
+  # ── PWA front-end ──────────────────────────────────────────────────────────
+  # React/Vite static build served by nginx. Proxies every /single/* request
+  # to whatsapp-api:3000 on the internal network — browser only talks to one
+  # origin, so no CORS needed.
   whatsapp-pwa:
     build:
       context: ./whatsapp-pwa
@@ -104,7 +112,6 @@ services:
         condition: service_healthy
     networks:
       - whatsapp-internal
-      - proxy
 
 volumes:
   session:
@@ -116,5 +123,3 @@ networks:
   whatsapp-internal:
     name: ${INSTANCE_NAME:-whatsapp-neo}-internal
     driver: bridge
-  proxy:
-    external: true

@@ -1,0 +1,52 @@
+# =============================================================================
+# DEBUG.LOCAL profile — fully standalone, zero Docker containers.
+#
+# Use this for the fastest inner dev loop: set breakpoints in VS Code, and
+# whatsapp-web.js launches and manages its OWN local Chromium via Puppeteer
+# (no whatsapp-chromium / cdp-proxy containers, no CDP tunnel).
+#
+# This works because CHROMIUM_CDP_URL is intentionally left UNSET below —
+# when unset, ClientOptionFactory.getLocalPuppeteerClientOptions() is used
+# instead of the remote-CDP path. See whatsapp-api/src/client.ts.
+#
+# Setup (copy this file to `debug.local` at the project root first):
+#   cp debug.local.example debug.local
+#   cd whatsapp-api
+#   ENV_FILE=debug.local npm run dev
+#
+# Or launch via VS Code: "Debug API (standalone, no Docker)" in
+# .vscode/launch.json already sets ENV_FILE for you — just hit F5.
+#
+# Set PUPPETEER_HEADLESS=false to pop open a real, visible Chromium window
+# so you can watch WhatsApp Web render while stepping through code.
+# =============================================================================
+
+# ── Authentication ───────────────────────────────────────────────────────────
+# Local-only — never used outside your machine, but must still be >= 8 chars.
+API_TOKEN=debug-local-token-12345
+BASIC_AUTH_USERNAME=admin
+BASIC_AUTH_PASSWORD=whatsapp
+
+# ── Chromium ──────────────────────────────────────────────────────────────────
+# Intentionally left unset/commented — triggers the local Puppeteer fallback.
+# CHROMIUM_CDP_URL=
+
+# Show the browser window while debugging (set to "true" to run headless).
+PUPPETEER_HEADLESS=false
+
+# ── Webhook ───────────────────────────────────────────────────────────────────
+WEBHOOK_URL=
+
+# ── Server ────────────────────────────────────────────────────────────────────
+# Different port than both the docker (3000/3022) and local (3007) profiles,
+# so you can run this alongside the other profiles without conflicts.
+PORT=3099
+
+# Separate session storage — keeps this throwaway debug session isolated
+# from your real WhatsApp session(s). Scan a fresh QR code the first time.
+SESSION_DATA_PATH=./.wwebjs_auth_debug
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+NODE_ENV=development
+TZ=UTC
+TEST_PHONE=+16073041892

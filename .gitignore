@@ -1,4 +1,9 @@
 .env
+docker.env
+local.env
+debug.local
 node_modules/
 .wwebjs_cache/
+.wwebjs_auth/
+.wwebjs_auth_debug/
 whatsapp-api/raw-package

@@ -47,13 +47,18 @@ export class ClientOptionFactory {
      * Builds ClientOptions that launch a **local** Puppeteer browser instance.
      *
      * Use this when running without a separate Chromium container — Puppeteer
-     * will manage its own browser process.
+     * will manage its own browser process. This is the debug.local profile's
+     * default: no Docker required at all. Set PUPPETEER_HEADLESS=false to
+     * watch the browser window live while debugging.
      */
     public static async getLocalPuppeteerClientOptions(): Promise<ClientOptions> {
+        console.log(
+            `[ClientOptionFactory] Launching local Puppeteer Chromium (headless=${config.PUPPETEER_HEADLESS})`
+        );
         return {
             authStrategy: new LocalAuth({ dataPath: config.SESSION_DATA_PATH }),
             puppeteer: {
-                headless: true,
+                headless: config.PUPPETEER_HEADLESS,
                 defaultViewport: null,
                 protocolTimeout: 30000,
                 args: [

@@ -1,8 +1,11 @@
 import { WhatsappClientFactory, WhatsAppClientWithCache } from "./services/WhatsAppService.v2";
 import { Client, WAState } from "whatsapp-web.js";
+import { config } from "./config";
 
-const options = process.env.CHROMIUM_CDP_URL
-    ? { cdpUrl: process.env.CHROMIUM_CDP_URL }
+// CHROMIUM_CDP_URL unset → WhatsappClientFactory falls back to a local
+// Puppeteer-launched Chromium (see ClientOptionFactory.getLocalPuppeteerClientOptions).
+const options = config.CHROMIUM_CDP_URL
+    ? { cdpUrl: config.CHROMIUM_CDP_URL }
     : undefined;
 
 export class StateError extends Error {

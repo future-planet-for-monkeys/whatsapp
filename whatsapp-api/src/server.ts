@@ -19,7 +19,9 @@ const server = app.listen(config.PORT, () => {
   console.log(`[server] Listening on http://0.0.0.0:${config.PORT}`);
   console.log(`[server] Docs:      http://0.0.0.0:${config.PORT}/docs`);
   console.log(`[server] Auth:      Bearer token (${config.API_TOKEN.length} chars)`);
-  console.log(`[server] Chromium:  ${config.CHROMIUM_CDP_URL}`);
+  console.log(
+    `[server] Chromium:  ${config.CHROMIUM_CDP_URL ?? `local Puppeteer (headless=${config.PUPPETEER_HEADLESS})`}`,
+  );
   if (config.WEBHOOK_URL) {
     console.log(`[server] Webhook:   ${config.WEBHOOK_URL}`);
   }

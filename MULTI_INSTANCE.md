@@ -1,15 +1,16 @@
 # Running Multiple WhatsApp Instances
 
-This docker-compose setup supports running multiple isolated WhatsApp instances, each with its own session data and configuration.
+This setup supports running multiple isolated WhatsApp instances, each with its own session data and configuration.
 
 ## How It Works
 
 The configuration uses environment variables to make volume names, container names, and ports dynamic:
 
-- **`INSTANCE_NAME`**: Unique identifier for each instance (default: `whatsapp-neo2`)
+- **`INSTANCE_NAME`**: Unique identifier for each instance (default: `whatsapp-neo`)
 - **`NOVNC_PORT`**: Port for noVNC web interface (default: `3008`)
 - **`API_PORT`**: Port for WhatsApp API (default: `3022`)
 - **`PWA_PORT`**: Port for the PWA front-end (default: `3009`)
+- **`CDP_PORT`**: Port for the CDP proxy (default: `9223`)
 
 Each instance gets its own:
 - Docker volumes for session persistence
@@ -21,10 +22,10 @@ Each instance gets its own:
 
 ```bash
 # Use default configuration — brings up chromium, cdp-proxy, api, and pwa
-docker-compose up -d
+docker compose up -d
 
 # Or specify custom values
-INSTANCE_NAME=my-whatsapp NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-compose up -d
+INSTANCE_NAME=my-whatsapp NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker compose up -d
 ```
 
 ## Running Multiple Instances
@@ -33,13 +34,13 @@ INSTANCE_NAME=my-whatsapp NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-com
 
 ```bash
 # Instance 1
-INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-compose up -d
+INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 CDP_PORT=9223 docker compose up -d
 
 # Instance 2
-INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3010 API_PORT=3023 PWA_PORT=3011 docker-compose up -d
+INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3010 API_PORT=3023 PWA_PORT=3011 CDP_PORT=9224 docker compose up -d
 
 # Instance 3
-INSTANCE_NAME=whatsapp-client3 NOVNC_PORT=3012 API_PORT=3024 PWA_PORT=3013 docker-compose up -d
+INSTANCE_NAME=whatsapp-client3 NOVNC_PORT=3012 API_PORT=3024 PWA_PORT=3013 CDP_PORT=9225 docker compose up -d
 ```
 
 ### Method 2: Using Separate .env Files
@@ -52,6 +53,7 @@ INSTANCE_NAME=whatsapp-client1
 NOVNC_PORT=3008
 API_PORT=3022
 PWA_PORT=3009
+CDP_PORT=9223
 ```
 
 **`.env.instance2`**:
@@ -60,22 +62,23 @@ INSTANCE_NAME=whatsapp-client2
 NOVNC_PORT=3010
 API_PORT=3023
 PWA_PORT=3011
+CDP_PORT=9224
 ```
 
 Then start each instance:
 ```bash
-docker-compose --env-file .env.instance1 up -d
-docker-compose --env-file .env.instance2 up -d
+docker compose --env-file .env.instance1 up -d
+docker compose --env-file .env.instance2 up -d
 ```
 
 ### Method 3: Using Docker Compose Project Names
 
 ```bash
 # Instance 1
-docker-compose -p whatsapp-client1 up -d
+docker compose -p whatsapp-client1 up -d
 
 # Instance 2
-docker-compose -p whatsapp-client2 up -d
+docker compose -p whatsapp-client2 up -d
 ```
 
 **Note**: When using project names, you still need to set different ports to avoid conflicts.
@@ -90,21 +93,21 @@ docker ps --filter "name=whatsapp"
 ### Stop a specific instance
 ```bash
 # Using environment variable
-INSTANCE_NAME=whatsapp-client1 docker-compose down
+INSTANCE_NAME=whatsapp-client1 docker compose down
 
 # Or using project name
-docker-compose -p whatsapp-client1 down
+docker compose -p whatsapp-client1 down
 ```
 
 ### View logs for a specific instance
 ```bash
-INSTANCE_NAME=whatsapp-client1 docker-compose logs -f
+INSTANCE_NAME=whatsapp-client1 docker compose logs -f
 ```
 
 ### Remove instance data (volumes)
 ```bash
 # This will delete the session data for the instance
-INSTANCE_NAME=whatsapp-client1 docker-compose down -v
+INSTANCE_NAME=whatsapp-client1 docker compose down -v
 ```
 
 ## Volume Names
@@ -133,7 +136,7 @@ Example for 3 instances:
 
 ## Important Notes
 
-1. **Port Conflicts**: Ensure each instance uses unique ports for both `NOVNC_PORT` and `API_PORT`
+1. **Port Conflicts**: Ensure each instance uses unique ports for `NOVNC_PORT`, `API_PORT`, `PWA_PORT`, and `CDP_PORT`
 2. **Session Isolation**: Each instance maintains completely separate WhatsApp sessions
 3. **Resource Usage**: Each instance runs a full Chromium browser, so monitor system resources
-4. **Network**: All instances share the external `proxy` network but have isolated internal networks
+4. **Network**: Each instance gets its own isolated internal bridge network

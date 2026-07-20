@@ -23,7 +23,7 @@ A REST API for WhatsApp built on [`whatsapp-web.js`](https://github.com/pedroslo
 
 ## Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/install/)
+- [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/install/) (v2+)
 - A spare WhatsApp account (a second phone number or a dual-SIM setup)
 
 ## Quick Start
@@ -36,41 +36,30 @@ Copy the example environment file and edit it:
 cp .env.example .env
 ```
 
-Minimum required variables in [`.env`](.env.example):
-
-```env
-# A unique name for this instance (affects container/volume names)
-INSTANCE_NAME=whatsapp-neo2
-
-# Port for the noVNC web interface (browser)
-NOVNC_PORT=3008
-
-# Port for the API server
-API_PORT=3022
-```
-
-Add an **API token** (at least 8 characters):
+Open [`.env`](.env) and set your API token (minimum 8 characters):
 
 ```env
 API_TOKEN=your-secret-token-here
 ```
 
+The defaults work out of the box for a single instance — no other changes needed. See [Configuration Reference](#configuration-reference) for all available options.
+
 ### 2. Start the stack
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-This single command builds and starts four containers:
+This single command builds and starts all four services in the correct order:
 
-| Container | Purpose | Access |
+| Container | Purpose | Host Port |
 |---|---|---|
-| `whatsapp-neo2-chromium` | Headless Chromium + noVNC | `http://localhost:3008` |
-| `whatsapp-neo2-cdp-proxy` | CDP WebSocket proxy | Internal only |
-| `whatsapp-neo2-api` | REST API + Swagger UI | `http://localhost:3022` |
-| `whatsapp-neo2-pwa` | PWA front-end (nginx) | `http://localhost:3009` |
+| `whatsapp-neo-chromium` | Chromium browser + noVNC desktop | `3008` |
+| `whatsapp-neo-cdp-proxy` | CDP WebSocket proxy (internal) | `9223` |
+| `whatsapp-neo-api` | REST API + Swagger UI | `3022` |
+| `whatsapp-neo-pwa` | React PWA front-end | `3009` |
 
-The PWA container waits for `whatsapp-api`'s healthcheck to pass before starting, and Chromium/cdp-proxy are wired up first — so a single `docker-compose up -d` brings the whole stack up in the right order with no manual steps.
+Service startup is sequenced via healthchecks: Chromium → CDP proxy → API → PWA. One command brings the entire stack up.
 
 ### 3. Check the health endpoint
 
@@ -93,7 +82,7 @@ The [`/health`](whatsapp-api/src/controllers/HealthController.ts) endpoint is **
 Watch the container logs for the QR code — it's printed as ASCII art whenever a new QR is generated:
 
 ```bash
-docker-compose logs -f whatsapp-api
+docker compose logs -f whatsapp-api
 ```
 
 When the QR code appears, you'll see output like:
@@ -257,7 +246,7 @@ curl -H "X-Api-Token: your-secret-token-here" http://localhost:3022/qr?format=js
 
 - Returns `409` (or a status page in HTML mode) when the QR code is not available — check [`/status`](#get-status--session-status) first.
 - The QR is only present while status is `qr_ready`.
-- **Console output**: Every time a new QR is generated, it's also printed as ASCII art in the Docker container logs — just run `docker-compose logs -f whatsapp-api` to see it.
+- **Console output**: Every time a new QR is generated, it's also printed as ASCII art in the Docker container logs — just run `docker compose logs -f whatsapp-api` to see it.
 
 ### Messaging Endpoints
 
@@ -527,51 +516,119 @@ Returned when the client is not in the `ready` state. Includes a `Retry-After` h
 
 ## Configuration Reference
 
-All configuration is via environment variables in [`.env`](.env.example).
+All configuration is via environment variables. Which file is loaded depends on the running mode — see [Running Modes](#running-modes) above. The table below covers the `docker` profile ([`docker.env.example`](docker.env.example:1)); `local.env.example` and `debug.local.example` document their own profile-specific defaults inline.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `API_TOKEN` | ✅ | — | Bearer token for API authentication (min 8 chars), sent as `X-Api-Token` |
 | `BASIC_AUTH_USERNAME` | ❌ | `admin` | Basic Auth username used by the PWA against `/single/*` |
 | `BASIC_AUTH_PASSWORD` | ❌ | `whatsapp` | Basic Auth password used by the PWA against `/single/*` |
-| `INSTANCE_NAME` | ❌ | `whatsapp-neo2` | Unique name for Docker volumes and container names |
+| `INSTANCE_NAME` | ❌ | `whatsapp-neo` | Unique name for Docker volumes and container names |
 | `NOVNC_PORT` | ❌ | `3008` | Host port for the noVNC browser UI |
 | `API_PORT` | ❌ | `3022` | Host port for the REST API |
 | `PWA_PORT` | ❌ | `3009` | Host port for the PWA front-end |
-| `CHROMIUM_CDP_URL` | ❌ | `ws://whatsapp-chromium:9223` | WebSocket URL of the Chromium CDP proxy (compose service name) |
+| `CHROMIUM_CDP_URL` | ❌ | *(unset → local Puppeteer)* | WebSocket URL of the Chromium CDP proxy. Docker profile: `ws://whatsapp-chromium:9223` (compose service name). Local profile: `ws://127.0.0.1:9223` (host-exposed port). Leave unset entirely to launch a local Puppeteer-managed Chromium instead (debug.local profile). |
+| `PUPPETEER_HEADLESS` | ❌ | `true` | Only used when `CHROMIUM_CDP_URL` is unset. Set to `false` to see the local Puppeteer browser window (debug.local profile). |
 | `WEBHOOK_URL` | ❌ | — | HTTP endpoint that receives incoming message POSTs |
-| `SESSION_DATA_PATH` | ❌ | `/app/.wwebjs_auth` | Directory for WhatsApp session persistence |
+| `SESSION_DATA_PATH` | ❌ | `/app/.wwebjs_auth` | Directory for WhatsApp session persistence — each profile should use a distinct path to avoid session collisions |
+| `ENV_FILE` | ❌ | `.env` | Selects which dotenv file [`config.ts`](whatsapp-api/src/config.ts:13) loads (resolved from the project root) — `local.env`, `debug.local`, etc. |
 
 ## Running Multiple Instances
 
-See [`MULTI_INSTANCE.md`](MULTI_INSTANCE.md) for detailed instructions on running multiple isolated WhatsApp instances side by side.
+Set `INSTANCE_NAME` to run isolated stacks side by side on the same host:
 
 ```bash
-# Instance 1
-INSTANCE_NAME=whatsapp-client1 NOVNC_PORT=3008 API_PORT=3022 PWA_PORT=3009 docker-compose up -d
+# Instance 1 (defaults)
+docker compose up -d
 
-# Instance 2
-INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3010 API_PORT=3023 PWA_PORT=3011 docker-compose up -d
+# Instance 2 (override name and ports)
+INSTANCE_NAME=whatsapp-client2 NOVNC_PORT=3010 API_PORT=3023 PWA_PORT=3011 CDP_PORT=9224 docker compose up -d
 ```
 
-Each instance gets its own:
-- Docker volumes for session and browser profile data
-- Container names
-- Port mappings
-- Network namespace
+Each instance gets its own Docker volumes, container names, port mappings, and isolated network. Each instance must scan its own QR code for a separate WhatsApp session. See [`MULTI_INSTANCE.md`](MULTI_INSTANCE.md) for more details.
 
-## Development
+## Running Modes
 
-The API is built with TypeScript, [tsoa](https://tsoa-community.github.io/docs/) (OpenAPI code-gen), and Express. The source code is bind-mounted from the host, so changes trigger an automatic reload via nodemon.
+The API supports three environment profiles for different development workflows. Each profile is a dotenv file — switch between them by setting the `ENV_FILE` variable when starting the API ([`config.ts`](whatsapp-api/src/config.ts:13) resolves it from the project root).
 
-### Running locally (outside Docker)
+| Profile | Config File | Chromium | Best For |
+|---|---|---|---|
+| **docker** | [`.env`](.env) | Dockerized, reached via internal DNS (`ws://whatsapp-chromium:9223`) | Full stack, `docker compose up -d` |
+| **local** | [`local.env`](local.env.example) | Dockerized (only Chromium + CDP proxy containers), reached via host port (`ws://127.0.0.1:9223`) | Hot-reloading API on host, browser still containerized |
+| **debug.local** | [`debug.local`](debug.local.example) | Local Puppeteer-launched Chromium (`CHROMIUM_CDP_URL` unset) — **no Docker at all** | Fastest inner loop, VS Code breakpoints, optional headful browser |
+
+> **Note:** Each profile uses its own `SESSION_DATA_PATH` — they do **not** share WhatsApp sessions. Switching profiles requires scanning a fresh QR code the first time.
+
+---
+
+### 1. `docker` — Full Stack via Docker Compose
+
+Everything runs in containers. One command.
+
+```bash
+cp .env.example .env
+# Edit .env and set API_TOKEN (min 8 chars)
+docker compose up -d
+```
+
+| Service | URL |
+|---|---|
+| PWA front-end | http://localhost:3009 |
+| REST API + Swagger | http://localhost:3022/docs |
+| noVNC (Chromium desktop) | http://localhost:3008 |
+
+The PWA proxies all `/single/*` API calls through its nginx to `whatsapp-api:3000` — the browser only talks to one origin, no CORS configuration needed.
+
+---
+
+### 2. `local` — Hybrid: Local API + Dockerized Chromium
+
+Run the API process directly with Node (hot reload, breakpoints) while the Chromium browser stays in Docker.
+
+**Step 1:** Start only the browser containers:
+
+```bash
+docker compose up -d whatsapp-chromium cdp-proxy
+```
+
+This starts Chromium on `http://localhost:3008` (noVNC) and exposes the CDP proxy on `ws://127.0.0.1:9223`.
+
+**Step 2:** Create the local profile:
+
+```bash
+cp local.env.example local.env
+```
+
+**Step 3:** Run the API on your host:
 
 ```bash
 cd whatsapp-api
-cp .env.example .env    # ensure API_TOKEN is set
 npm install
-npm run dev
+ENV_FILE=local.env npm run dev
 ```
+
+The API listens on `http://localhost:3007` and connects to Chromium via `ws://127.0.0.1:9223` (the CDP proxy exposed by Docker). Only `whatsapp-chromium` and `cdp-proxy` run in containers — the API process runs natively.
+
+---
+
+### 3. `debug.local` — Fully Standalone (Zero Docker)
+
+No Docker at all. The API launches and manages its own Chromium via Puppeteer.
+
+```bash
+cp debug.local.example debug.local
+cd whatsapp-api
+npm install
+ENV_FILE=debug.local npm run dev
+```
+
+The API listens on `http://localhost:3099`. Set `PUPPETEER_HEADLESS=false` in `debug.local` to pop open a visible Chromium window so you can watch WhatsApp Web render while stepping through code.
+
+Or press **F5** in VS Code — [`.vscode/launch.json`](.vscode/launch.json) includes pre-configured debug configurations for both `local` and `debug.local` profiles.
+
+## Development
+
+The API is built with TypeScript, [tsoa](https://tsoa-community.github.io/docs/) (OpenAPI code-gen), and Express. Inside Docker, the source code is bind-mounted from the host, so changes trigger an automatic reload via nodemon. See [Running Modes](#running-modes) above for the local/debug alternatives to running the whole stack in Docker.
 
 ### Project Structure
 
@@ -606,19 +663,22 @@ whatsapp-pwa/
 ## Docker Commands
 
 ```bash
+# View logs for all services
+docker compose logs -f
+
 # View logs for a single service
-docker-compose logs -f whatsapp-api
-docker-compose logs -f whatsapp-pwa
+docker compose logs -f whatsapp-api
+docker compose logs -f whatsapp-pwa
 
 # Rebuild a single service after code changes (PWA image bakes in the build,
 # so it must be rebuilt — whatsapp-api hot-reloads via the bind mount)
-docker-compose up -d --build whatsapp-pwa
+docker compose up -d --build whatsapp-pwa
 
 # Restart the API only
-docker-compose restart whatsapp-api
+docker compose restart whatsapp-api
 
 # Stop everything
-docker-compose down
+docker compose down
 
 # Stop and delete volumes (⚠️ removes session data)
-docker-compose down -v
+docker compose down -v
