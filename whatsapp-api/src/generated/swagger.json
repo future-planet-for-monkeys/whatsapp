@@ -338,13 +338,19 @@
 				"type": "http",
 				"scheme": "basic",
 				"description": "BASIC_AUTH_USERNAME / BASIC_AUTH_PASSWORD from .env — standard HTTP Basic Auth"
+			},
+			"jwtAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT",
+				"description": "JWT obtained from POST /auth/login or POST /auth/signup — set as Authorization: Bearer <token>"
 			}
 		}
 	},
 	"info": {
 		"title": "WhatsApp Neo API",
 		"version": "2.0.0",
-		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require either a Bearer token or Basic Auth:\n```\nX-Api-Token: <API_TOKEN>\nAuthorization: Basic <base64>\n```",
+		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require one of:\n- X-Api-Token: <API_TOKEN>\n- Authorization: Basic <base64>\n- Authorization: Bearer <JWT>\n\nSee the Auth section for how to obtain a JWT via /auth/login or /auth/signup.",
 		"contact": {}
 	},
 	"paths": {
@@ -1100,16 +1106,13 @@
 						}
 					}
 				},
-				"description": "Register a new user who will share the WhatsApp session.\nEach user gets their own read/sent/seen state.\n\nSecurity: API token (X-Api-Token header) or Basic Auth.",
+				"description": "Register a new user who will share the WhatsApp session.\nEach user gets their own read/sent/seen state.\n\nSecurity: API token (X-Api-Token header) or Basic Auth.\nAdmin-only — only someone with the API token can create users.",
 				"tags": [
 					"Auth"
 				],
 				"security": [
 					{
 						"bearerAuth": []
-					},
-					{
-						"basicAuth": []
 					}
 				],
 				"parameters": [],
@@ -1187,6 +1190,33 @@
 						}
 					}
 				}
+			}
+		},
+		"/auth/me": {
+			"get": {
+				"operationId": "Me",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JWTContents"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns the currently authenticated user's info.\nUseful for validating that a JWT is still valid and who it belongs to.\n\nSecurity: JWT (Authorization: Bearer <token>).",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": []
 			}
 		}
 	},

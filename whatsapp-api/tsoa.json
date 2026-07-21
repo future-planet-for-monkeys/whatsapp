@@ -6,7 +6,7 @@
     "outputDirectory": "src/generated",
     "specVersion": 3,
     "name": "WhatsApp Neo API",
-    "description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require either a Bearer token or Basic Auth:\n```\nX-Api-Token: <API_TOKEN>\nAuthorization: Basic <base64>\n```",
+    "description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require one of:\n- X-Api-Token: <API_TOKEN>\n- Authorization: Basic <base64>\n- Authorization: Bearer <JWT>\n\nSee the Auth section for how to obtain a JWT via /auth/login or /auth/signup.",
     "version": "2.0.0",
     "securityDefinitions": {
       "bearerAuth": {
@@ -19,6 +19,12 @@
         "type": "http",
         "scheme": "basic",
         "description": "BASIC_AUTH_USERNAME / BASIC_AUTH_PASSWORD from .env — standard HTTP Basic Auth"
+      },
+      "jwtAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT obtained from POST /auth/login or POST /auth/signup — set as Authorization: Bearer <token>"
       }
     },
     "servers": [{ "url": "/", "description": "This server" }],

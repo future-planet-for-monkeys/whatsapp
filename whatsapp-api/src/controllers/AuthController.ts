@@ -1,4 +1,5 @@
-import { Controller, Route, Tags, Post, Body, Security } from "tsoa";
+import { Controller, Route, Tags, Post, Get, Body, Security, Request } from "tsoa";
+import type { Request as ExpressRequest } from "express";
 import {
   createUser,
   authenticateUser,
@@ -18,10 +19,10 @@ export class AuthController extends Controller {
    * Each user gets their own read/sent/seen state.
    *
    * Security: API token (X-Api-Token header) or Basic Auth.
+   * Admin-only — only someone with the API token can create users.
    */
   @Post("signup")
   @Security("bearerAuth")
-  @Security("basicAuth")
   public async signup(
     @Body() body: CreateUserRequest,
   ): Promise<{ token: string; user: JWTContents }> {
@@ -46,5 +47,20 @@ export class AuthController extends Controller {
     const user = await authenticateUser(body.phoneNumber, body.password);
     const token = signJWT(user);
     return { token, user };
+  }
+
+  /**
+   * Returns the currently authenticated user's info.
+   * Useful for validating that a JWT is still valid and who it belongs to.
+   *
+   * Security: JWT (Authorization: Bearer <token>).
+   */
+  @Get("me")
+  @Security("jwtAuth")
+  public async me(
+    @Request() request: ExpressRequest,
+  ): Promise<JWTContents> {
+    // The auth middleware decoded the JWT and attached it to request.user
+    return request.user!;
   }
 }
