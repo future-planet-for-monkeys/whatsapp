@@ -8,3 +8,4 @@ node_modules/
 .wwebjs_auth_debug/
 whatsapp-api/raw-package
 whatsapp-mcp/dist
+whatsapp-pwa/dist/

@@ -494,7 +494,7 @@ export default function ChatView({
           {onBack && (
             <button
               onClick={onBack}
-              className="md:hidden text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Back"
             >
               <svg
@@ -512,7 +512,16 @@ export default function ChatView({
               </svg>
             </button>
           )}
-          <Avatar contact={null} name={chat.name} size="sm" />
+          <Avatar
+            contact={{
+              lid: chat.isGroup ? null : chat.id._serialized,
+              pn: chat.isGroup ? null : chat.id._serialized,
+              name: chat.name,
+              avatarUrl: chat.chatAvatarUrl,
+            }}
+            name={chat.name}
+            size="sm"
+          />
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-gray-800 truncate">
               {chat.name}
