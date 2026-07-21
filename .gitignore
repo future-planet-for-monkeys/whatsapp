@@ -9,3 +9,10 @@ node_modules/
 whatsapp-api/raw-package
 whatsapp-mcp/dist
 whatsapp-pwa/dist/
+
+# SQLite database files (local development)
+whatsapp-api/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

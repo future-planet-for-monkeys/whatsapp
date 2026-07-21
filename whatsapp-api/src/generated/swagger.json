@@ -286,6 +286,45 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"JWTContents": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"userId",
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateUserRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"password": {
+						"type": "string"
+					},
+					"phoneNumber": {
+						"type": "string"
+					},
+					"notes": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"password",
+					"phoneNumber"
+				],
+				"type": "object",
+				"additionalProperties": false
 			}
 		},
 		"securitySchemes": {
@@ -1032,6 +1071,122 @@
 						}
 					}
 				]
+			}
+		},
+		"/auth/signup": {
+			"post": {
+				"operationId": "Signup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"user": {
+											"$ref": "#/components/schemas/JWTContents"
+										},
+										"token": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"user",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Register a new user who will share the WhatsApp session.\nEach user gets their own read/sent/seen state.\n\nSecurity: API token (X-Api-Token header) or Basic Auth.",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateUserRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/login": {
+			"post": {
+				"operationId": "Login",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"user": {
+											"$ref": "#/components/schemas/JWTContents"
+										},
+										"token": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"user",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Authenticate with phone number + password.\nReturns a JWT which should be sent as `Authorization: Bearer <token>`.\n\nSecurity: API token (X-Api-Token header) or Basic Auth.",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					},
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"password": {
+										"type": "string"
+									},
+									"phoneNumber": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"password",
+									"phoneNumber"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
 			}
 		}
 	},

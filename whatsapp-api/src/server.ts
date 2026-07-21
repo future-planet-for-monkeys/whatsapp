@@ -30,10 +30,14 @@ const server = app.listen(config.PORT, () => {
 // ---------------------------------------------------------------------------
 // Graceful shutdown
 // ---------------------------------------------------------------------------
+import { disconnectPrisma } from './services/PrismaService';
+
 function shutdown(signal: string): void {
   console.log(`[server] ${signal} received — shutting down gracefully`);
-  server.close(() => {
+  server.close(async () => {
     console.log('[server] HTTP server closed');
+    await disconnectPrisma();
+    console.log('[server] Database disconnected');
     process.exit(0);
   });
 }

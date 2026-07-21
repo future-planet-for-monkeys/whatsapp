@@ -7,10 +7,14 @@ WORKDIR /app
 # hook (`patch-package`) applies patches at install time. Without this, the
 # whatsapp-web.js patch is silently skipped ("No patch files found") and the
 # unpatched library throws on getChat/getChatById/getChats once WhatsApp Web
-# renames internal fields (e.g. message key `_serialized` → `$1`).
+# renames internal fields (e.g. message key `_serialized` → `_serialized`).
 COPY package.json package-lock.json* ./
 COPY patches ./patches
 RUN npm ci --omit=dev=false
+
+# Copy Prisma schema and generate type-safe client
+COPY prisma ./prisma
+RUN npx prisma generate
 
 # Copy config files needed by tsoa code-gen
 COPY tsconfig.json tsoa.json ./
@@ -28,6 +32,9 @@ RUN npx tsoa spec-and-routes && \
 
 # Expose API port (mapped to host port 3021 in docker-compose)
 EXPOSE 3000
+
+# Create the data directory for SQLite (persisted via Docker volume)
+RUN mkdir -p /app/data
 
 # Start the server (tsx runs TypeScript directly — no separate compile step)
 CMD ["npx", "tsx", "src/server.ts"]

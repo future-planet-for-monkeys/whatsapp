@@ -73,6 +73,8 @@ services:
       - ./whatsapp-api/src:/app/src
       # Session persistence — survives container restarts
       - session:/app/.wwebjs_auth
+      # SQLite database persistence — survives container restarts
+      - db_data:/app/data
       # node_modules live inside the image layer, NOT on the host
     depends_on:
       whatsapp-chromium:
@@ -118,6 +120,8 @@ volumes:
     name: ${INSTANCE_NAME:-whatsapp-neo}_session
   chromium_profile:
     name: ${INSTANCE_NAME:-whatsapp-neo}_chromium_profile
+  db_data:
+    name: ${INSTANCE_NAME:-whatsapp-neo}_db_data
 
 networks:
   whatsapp-internal:

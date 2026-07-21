@@ -1,0 +1,66 @@
+// ---------------------------------------------------------------------------
+// Prisma schema for whatsapp-neo multi-user state.
+//
+// Each "user" is a logical person sharing a single WhatsApp Web session.
+// The Set<string> fields in the original UserModel are modelled as
+// many-to-many join tables keyed on string IDs from the WhatsApp API.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ── User ────────────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  phoneNumber  String   @unique
+  passwordHash String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  readChats    ReadChat[]
+  sentMessages SentMessage[]
+  seenMessages SeenMessage[]
+}
+
+// ── Per-user read receipts ───────────────────────────────────────────────────
+// Tracks which chat's latest messages a user has read.
+// chatId is a WhatsApp chat._serialised string.
+model ReadChat {
+  userId String
+  chatId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chatId])
+}
+
+// ── Per-user sent-message tracking ───────────────────────────────────────────
+// Records which messages were sent by a given user.
+// messageId is a WhatsApp message.id._serialised string.
+model SentMessage {
+  userId    String
+  messageId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+}
+
+// ── Per-user seen-message tracking ───────────────────────────────────────────
+// Records which messages a user has seen / opened.
+// messageId is a WhatsApp message.id._serialised string.
+model SeenMessage {
+  userId    String
+  messageId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+}
