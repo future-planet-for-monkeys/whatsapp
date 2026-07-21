@@ -26,7 +26,7 @@ export default function App(): React.ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
       <OfflineBanner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <Routes>
           <Route
             path="/login"

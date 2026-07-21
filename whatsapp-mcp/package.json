@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-mcp",
+  "version": "1.0.0",
+  "description": "MCP server exposing WhatsApp via the whatsapp-neo-api REST backend — lets AI agents send/receive messages, list chats, and more.",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/server.js",
+    "inspector": "npx @modelcontextprotocol/inspector node dist/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.3"
+  }
+}

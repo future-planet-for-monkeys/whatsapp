@@ -28,8 +28,14 @@ export function formatMessageDateSeparator(timestampSeconds: number): string {
  * - This week: Weekday name (e.g., Monday)
  * - Older: dd/MM/yyyy
  */
-export function formatChatTimestamp(timestampSeconds: number): string {
+export function formatChatTimestamp(timestampSeconds: number | null | undefined): string {
+  if (timestampSeconds == null || timestampSeconds <= 0) {
+    return '';
+  }
   const date = new Date(timestampSeconds * 1000);
+  if (isNaN(date.getTime())) {
+    return '';
+  }
   if (isToday(date)) {
     return format(date, 'HH:mm');
   }
