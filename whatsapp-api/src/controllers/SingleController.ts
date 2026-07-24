@@ -65,6 +65,15 @@ export interface MessageDto {
     hasMedia: boolean;
     type: AllowedMessageTypes;
     from: ContactInfoDto;
+    sentByUser: {
+        userId: string; 
+        name: string;
+        phoneNumber: string;
+    }
+    readBy: {
+        [userId: string]: boolean; // Maps userId to a boolean indicating if the user has read the message
+        someone: boolean; // Indicates if at least one user has read the message
+    };
     /** Unix epoch seconds */
     timestamp: number;
 }

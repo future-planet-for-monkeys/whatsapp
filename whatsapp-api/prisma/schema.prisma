@@ -24,22 +24,28 @@ model User {
   notes        String?
   createdAt    DateTime @default(now())
 
-  readChats    ReadChat[]
+  readChats    Chat[]
   sentMessages SentMessage[]
   seenMessages SeenMessage[]
 }
 
-// ── Per-user read receipts ───────────────────────────────────────────────────
-// Tracks which chat's latest messages a user has read.
-// chatId is a WhatsApp chat._serialised string.
-model ReadChat {
-  userId String
-  chatId String
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([userId, chatId])
+model Chat {
+  id        String   @id
+  createdAt DateTime @default(now())
+  chatData  Json // Stores the raw WhatsApp chat data as a JSON object, without messages.
+  messages  SentMessage[]
 }
+
+model Message {
+  id        String   @id
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  messageData Json   // Stores the raw WhatsApp message data as a JSON object.
+  createdAt DateTime @default(now())
+}
+
+
 
 // ── Per-user sent-message tracking ───────────────────────────────────────────
 // Records which messages were sent by a given user.
@@ -47,8 +53,10 @@ model ReadChat {
 model SentMessage {
   userId    String
   messageId String
-
+  chatId    String
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@id([userId, messageId])
 }
@@ -59,8 +67,10 @@ model SentMessage {
 model SeenMessage {
   userId    String
   messageId String
-
+  chatId    String
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@id([userId, messageId])
 }
