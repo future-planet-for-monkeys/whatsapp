@@ -102,6 +102,8 @@ const models: TsoaRoute.Models = {
             "hasMedia": {"dataType":"boolean","required":true},
             "type": {"ref":"AllowedMessageTypes","required":true},
             "from": {"ref":"ContactInfoDto","required":true},
+            "sentByUser": {"dataType":"nestedObjectLiteral","nestedProperties":{"phoneNumber":{"dataType":"string","required":true},"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}},"required":true},
+            "readBy": {"dataType":"nestedObjectLiteral","nestedProperties":{"someone":{"dataType":"boolean","required":true}},"additionalProperties":{"dataType":"boolean"},"required":true},
             "timestamp": {"dataType":"double","required":true},
         },
         "additionalProperties": false,
@@ -245,6 +247,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSingleController_markAsRead: Record<string, TsoaRoute.ParameterSchema> = {
                 id: {"in":"path","name":"id","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/chats/:id/read',
@@ -279,6 +282,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 id: {"in":"path","name":"id","required":true,"dataType":"string"},
                 limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
                 offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
                 badRequest: {"in":"res","name":"400","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"error":{"dataType":"string","required":true}}},
         };
@@ -412,6 +416,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSingleController_sendMessage: Record<string, TsoaRoute.ParameterSchema> = {
                 request: {"in":"body","name":"request","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true},"chatId":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/messages/send-text',
@@ -445,6 +450,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         const argsSingleController_sendMedia: Record<string, TsoaRoute.ParameterSchema> = {
                 chatId: {"in":"path","name":"chatId","required":true,"dataType":"string"},
                 file: {"in":"formData","name":"file","required":true,"dataType":"file"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/messages/:chatId/send-media',

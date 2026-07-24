@@ -24,28 +24,45 @@ model User {
   notes        String?
   createdAt    DateTime @default(now())
 
-  readChats    Chat[]
+  readChats    ReadChat[]
   sentMessages SentMessage[]
   seenMessages SeenMessage[]
 }
 
-
+// ── Chat ────────────────────────────────────────────────────────────────────
 model Chat {
   id        String   @id
   createdAt DateTime @default(now())
   chatData  Json // Stores the raw WhatsApp chat data as a JSON object, without messages.
-  messages  SentMessage[]
+
+  messageRecords Message[]       // Messages in this chat
+  readByUsers    ReadChat[]      // Users who have read this chat
+  sentMessages   SentMessage[]   // Sent-message join records
+  seenMessages   SeenMessage[]   // Seen-message join records
 }
 
+// ── Message ─────────────────────────────────────────────────────────────────
 model Message {
-  id        String   @id
-  chatId    String
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  messageData Json   // Stores the raw WhatsApp message data as a JSON object.
-  createdAt DateTime @default(now())
+  id          String   @id
+  chatId      String
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  messageData Json     // Stores the raw WhatsApp message data as a JSON object.
+  createdAt   DateTime @default(now())
+
+  sentByUsers SentMessage[] // Join records linking to users who sent this
+  seenByUsers SeenMessage[] // Join records linking to users who saw this
 }
 
+// ── Per-user read-chat tracking ─────────────────────────────────────────────
+// Records which chats a user has read.
+model ReadChat {
+  userId String
+  chatId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
+  @@id([userId, chatId])
+}
 
 // ── Per-user sent-message tracking ───────────────────────────────────────────
 // Records which messages were sent by a given user.
@@ -54,9 +71,9 @@ model SentMessage {
   userId    String
   messageId String
   chatId    String
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat      Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@id([userId, messageId])
 }
@@ -68,9 +85,9 @@ model SeenMessage {
   userId    String
   messageId String
   chatId    String
-  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chat      Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@id([userId, messageId])
 }

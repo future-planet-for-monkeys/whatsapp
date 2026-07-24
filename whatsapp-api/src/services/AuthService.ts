@@ -4,6 +4,9 @@
 // Passwords are hashed with bcryptjs before storage. JWTs are signed with
 // a configurable secret (defaults to a random value in development for
 // convenience, but MUST be set to a fixed secret in production).
+//
+// NOTE: User read / sent / seen state helpers have been extracted to
+// UserStateService. Message-persistence helpers live in MessageService.
 // ---------------------------------------------------------------------------
 
 import bcrypt from "bcryptjs";
@@ -27,15 +30,9 @@ export interface CreateUserRequest {
   notes?: string;
 }
 
-export interface UserModel {
-  id: string;
-  name: string;
-  phoneNumber: string;
-  notes?: string;
-  readChatIds: Set<string>;
-  sentMessageIds: Set<string>;
-  seenMessageIds: Set<string>;
-}
+// Re-exported for API / Swagger compatibility.
+// Definition lives in UserStateService alongside the read/sent/seen helpers.
+export type { UserModel } from "./UserStateService";
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -104,92 +101,4 @@ export function signJWT(contents: JWTContents): string {
  */
 export function verifyJWT(token: string): JWTContents {
   return jwt.verify(token, config.JWT_SECRET) as JWTContents;
-}
-
-// ── Read / sent / seen state helpers ────────────────────────────────────────
-
-/**
- * Load a full UserModel (with Sets populated) from the database.
- */
-export async function getUserModel(userId: string): Promise<UserModel | null> {
-  const prisma = getPrisma();
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      readChats: true,
-      sentMessages: true,
-      seenMessages: true,
-    },
-  });
-
-  if (!user) return null;
-
-  return {
-    id: user.id,
-    name: user.name,
-    phoneNumber: user.phoneNumber,
-    notes: user.notes ?? undefined,
-    readChatIds: new Set(user.readChats.map((rc) => rc.chatId)),
-    sentMessageIds: new Set(user.sentMessages.map((sm) => sm.messageId)),
-    seenMessageIds: new Set(user.seenMessages.map((sm) => sm.messageId)),
-  };
-}
-
-/**
- * Mark a chat as read by a user (idempotent).
- */
-export async function markChatRead(
-  userId: string,
-  chatId: string,
-): Promise<void> {
-  const prisma = getPrisma();
-  await prisma.readChat.upsert({
-    where: { userId_chatId: { userId, chatId } },
-    create: { userId, chatId },
-    update: {},
-  });
-}
-
-/**
- * Unmark a chat as read by a user.
- */
-export async function unmarkChatRead(
-  userId: string,
-  chatId: string,
-): Promise<void> {
-  const prisma = getPrisma();
-  await prisma.readChat.deleteMany({
-    where: { userId, chatId },
-  });
-}
-
-/**
- * Record a message as seen by a user (idempotent).
- */
-export async function markMessageSeen(
-  userId: string,
-  messageId: string,
-): Promise<void> {
-  const prisma = getPrisma();
-  await prisma.seenMessage.upsert({
-    where: { userId_messageId: { userId, messageId } },
-    create: { userId, messageId },
-    update: {},
-  });
-}
-
-/**
- * Record a message as sent by a user (idempotent).
- */
-export async function markMessageSent(
-  userId: string,
-  messageId: string,
-): Promise<void> {
-  const prisma = getPrisma();
-  await prisma.sentMessage.upsert({
-    where: { userId_messageId: { userId, messageId } },
-    create: { userId, messageId },
-    update: {},
-  });
 }

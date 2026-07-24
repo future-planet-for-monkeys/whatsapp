@@ -4,6 +4,7 @@ import { CLIENT } from "../client";
 import { WhatsAppClientWithCache } from "../services/WhatsAppService.v2";
 import type { Request as ExpressRequest } from "express";
 import fs from "node:fs";
+import { getMessageSender, getMessageReadBy, upsertMessage, markMessageSent, markMessageSeen } from "../services/MessageService";
 
 // ── 0.8: Widen the union to match real-world WhatsApp types ────────────────
 export type AllowedMessageTypes =
@@ -122,6 +123,14 @@ async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImm
 async function toMessageDto(client: WhatsAppClientWithCache, message: Message, resolveImmediately = false): Promise<MessageDto> {
     const authorId = message.author || message.from;
     const contactInfo = await client.resolveContactInfo(authorId, resolveImmediately);
+    const messageId = message.id._serialized;
+
+    // Enrich with Prisma-backed metadata (best-effort — defaults on miss)
+    const [sender, readBy] = await Promise.all([
+        getMessageSender(messageId),
+        getMessageReadBy(messageId),
+    ]);
+
     return {
         id: {
             fromMe: message.id.fromMe,
@@ -133,6 +142,8 @@ async function toMessageDto(client: WhatsAppClientWithCache, message: Message, r
         hasMedia: message.hasMedia,
         type: toAllowedType(message.type),
         from: await toContactInfoDto(client, contactInfo, resolveImmediately),
+        sentByUser: sender ?? { userId: '', name: '', phoneNumber: '' },
+        readBy,
         timestamp: message.timestamp,
     };
 }
@@ -254,12 +265,27 @@ export class SingleController extends Controller {
     @Post('chats/{id}/read')
     async markAsRead(
         @Path() id: string,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<{ success: boolean }> {
         const client = await this.client;
         const chat = await client.getChatById(id);
         if (!chat) return notFoundResponse(404, { message: 'Chat not found' });
         await chat.sendSeen();
+
+        // Record the last 10 messages as seen by this user so the
+        // readBy field is populated on subsequent fetches.
+        if (req.user?.userId) {
+            const messages = await chat.fetchMessages({ limit: 10 });
+            await Promise.all(
+                messages.map(msg =>
+                    upsertMessage(msg.id._serialized, id, { body: msg.body }).then(() =>
+                        markMessageSeen(req.user!.userId, msg.id._serialized, id)
+                    )
+                )
+            );
+        }
+
         return { success: true };
     }
 
@@ -279,6 +305,7 @@ export class SingleController extends Controller {
         @Path() id: string,
         @Query() limit = 50,
         @Query() offset = 0,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
         @Res() badRequest: TsoaResponse<400, { error: string }>,
     ): Promise<MessageDto[]> {
@@ -301,6 +328,18 @@ export class SingleController extends Controller {
             // 0.4: resolveImmediately = false for list endpoints
             sliced.map(msg => toMessageDto(client, msg, false))
         ).then(msgs => msgs.filter(msg => msg.type !== 'unsupported')); // Return oldest-first
+
+        // Implicitly mark fetched messages as seen by the requesting user.
+        // Fire-and-forget — never block the response on DB writes.
+        if (req.user?.userId) {
+            const uid = req.user.userId;
+            sliced.forEach(msg => {
+                upsertMessage(msg.id._serialized, id, { body: msg.body }).then(() =>
+                    markMessageSeen(uid, msg.id._serialized, id)
+                ).catch(err => console.error('Failed to record seen message:', err));
+            });
+        }
+
         return result;
     }
 
@@ -427,6 +466,7 @@ export class SingleController extends Controller {
             chatId: string;
             message: string;
         },
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<MessageDto> {
         const client = await this.client;
@@ -434,6 +474,17 @@ export class SingleController extends Controller {
         if (!messageResult) {
             return notFoundResponse(404, { message: 'Message not sent' });
         }
+
+        // Persist to database — attribute to sender and mark as seen by them
+        const messageId = messageResult.id._serialized;
+        await upsertMessage(messageId, request.chatId, { body: request.message });
+        if (req.user?.userId) {
+            await Promise.all([
+                markMessageSent(req.user.userId, messageId, request.chatId),
+                markMessageSeen(req.user.userId, messageId, request.chatId),
+            ]);
+        }
+
         return toMessageDto(client, messageResult, true);
     }
 
@@ -441,6 +492,7 @@ export class SingleController extends Controller {
     async sendMedia(
         @Path() chatId: string,
         @UploadedFile() file: Express.Multer.File,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<MessageDto> {
         const client = await this.client;
@@ -453,6 +505,17 @@ export class SingleController extends Controller {
         if (!messageResult) {
             return notFoundResponse(404, { message: 'Media not sent' });
         }
+
+        // Persist to database — attribute to sender and mark as seen by them
+        const messageId = messageResult.id._serialized;
+        await upsertMessage(messageId, chatId, { mediaMime: file.mimetype, fileName: file.originalname });
+        if (req.user?.userId) {
+            await Promise.all([
+                markMessageSent(req.user.userId, messageId, chatId),
+                markMessageSeen(req.user.userId, messageId, chatId),
+            ]);
+        }
+
         return toMessageDto(client, messageResult, true);
     }
 

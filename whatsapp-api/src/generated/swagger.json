@@ -173,6 +173,39 @@
 					"from": {
 						"$ref": "#/components/schemas/ContactInfoDto"
 					},
+					"sentByUser": {
+						"properties": {
+							"phoneNumber": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"userId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"phoneNumber",
+							"name",
+							"userId"
+						],
+						"type": "object"
+					},
+					"readBy": {
+						"properties": {
+							"someone": {
+								"type": "boolean"
+							}
+						},
+						"additionalProperties": {
+							"type": "boolean"
+						},
+						"required": [
+							"someone"
+						],
+						"type": "object"
+					},
 					"timestamp": {
 						"type": "number",
 						"format": "double",
@@ -185,6 +218,8 @@
 					"hasMedia",
 					"type",
 					"from",
+					"sentByUser",
+					"readBy",
 					"timestamp"
 				],
 				"type": "object",
