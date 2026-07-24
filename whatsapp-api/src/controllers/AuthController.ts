@@ -18,11 +18,10 @@ export class AuthController extends Controller {
    * Register a new user who will share the WhatsApp session.
    * Each user gets their own read/sent/seen state.
    *
-   * Security: API token (X-Api-Token header) or Basic Auth.
-   * Admin-only — only someone with the API token can create users.
+   * Security: Basic Auth (system credentials).
    */
   @Post("signup")
-  @Security("bearerAuth")
+  @Security("basicAuth")
   public async signup(
     @Body() body: CreateUserRequest,
   ): Promise<{ token: string; user: JWTContents }> {
@@ -36,10 +35,9 @@ export class AuthController extends Controller {
    * Authenticate with phone number + password.
    * Returns a JWT which should be sent as `Authorization: Bearer <token>`.
    *
-   * Security: API token (X-Api-Token header) or Basic Auth.
+   * Security: Basic Auth (system credentials).
    */
   @Post("login")
-  @Security("bearerAuth")
   @Security("basicAuth")
   public async login(
     @Body() body: { phoneNumber: string; password: string },

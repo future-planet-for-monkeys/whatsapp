@@ -7,10 +7,22 @@ export const client: AxiosInstance = axios.create({
 
 client.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
-    const { username, password } = useAuthStore.getState();
-    if (username && password) {
-      config.headers['Authorization'] = `Basic ${btoa(`${username}:${password}`)}`;
+    const { username, password, token } = useAuthStore.getState();
+    const url = config.url ?? '';
+
+    // Auth endpoints (login/signup) use Basic auth with system credentials
+    if (url === '/auth/login' || url === '/auth/signup') {
+      if (username && password) {
+        config.headers['Authorization'] = `Basic ${btoa(`${username}:${password}`)}`;
+      }
+      return config;
     }
+
+    // All other endpoints use Bearer JWT
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+
     return config;
   },
   (error: unknown): Promise<never> => {
@@ -26,7 +38,12 @@ client.interceptors.response.use(
     if (error.response) {
       const status = error.response.status;
       if (status === 401 || status === 403) {
-        useAuthStore.getState().clearCredentials();
+        const { token, clearToken, clearCredentials } = useAuthStore.getState();
+        if (token) {
+          clearToken();
+        } else {
+          clearCredentials();
+        }
         // Only redirect if we are not already on the login page to avoid infinite loops
         if (window.location.pathname !== '/login') {
           window.location.replace('/login');

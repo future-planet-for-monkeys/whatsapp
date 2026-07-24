@@ -350,7 +350,7 @@
 	"info": {
 		"title": "WhatsApp Neo API",
 		"version": "2.0.0",
-		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require one of:\n- X-Api-Token: <API_TOKEN>\n- Authorization: Basic <base64>\n- Authorization: Bearer <JWT>\n\nSee the Auth section for how to obtain a JWT via /auth/login or /auth/signup.",
+		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAuth scheme split by endpoint type:\n- `/auth/*`     → Authorization: Basic <base64> (system credentials, obtain a JWT)\n- `/single/*`   → Authorization: Bearer <JWT>    (per-user state)\n- `/health`     → no auth required\n\nSee the Auth section for how to obtain a JWT via /auth/login or /auth/signup.",
 		"contact": {}
 	},
 	"paths": {
@@ -377,7 +377,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -451,7 +451,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -512,7 +512,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -587,7 +587,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -672,7 +672,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -685,33 +685,6 @@
 						}
 					}
 				]
-			}
-		},
-		"/single/client/state": {
-			"get": {
-				"operationId": "GetClientState",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ClientStateResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Get the current WhatsApp client connection state.\nReturns the raw WAState value along with a simplified status and readiness flag.",
-				"tags": [
-					"Single"
-				],
-				"security": [
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": []
 			}
 		},
 		"/single/avatar/{contactId}": {
@@ -764,7 +737,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -820,7 +793,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [],
@@ -877,7 +850,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [],
@@ -943,7 +916,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -1064,7 +1037,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -1077,6 +1050,28 @@
 						}
 					}
 				]
+			}
+		},
+		"/single/client/state": {
+			"get": {
+				"operationId": "GetState",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ClientStateResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": []
 			}
 		},
 		"/auth/signup": {
@@ -1106,13 +1101,13 @@
 						}
 					}
 				},
-				"description": "Register a new user who will share the WhatsApp session.\nEach user gets their own read/sent/seen state.\n\nSecurity: API token (X-Api-Token header) or Basic Auth.\nAdmin-only — only someone with the API token can create users.",
+				"description": "Register a new user who will share the WhatsApp session.\nEach user gets their own read/sent/seen state.\n\nSecurity: Basic Auth (system credentials).",
 				"tags": [
 					"Auth"
 				],
 				"security": [
 					{
-						"bearerAuth": []
+						"basicAuth": []
 					}
 				],
 				"parameters": [],
@@ -1155,14 +1150,11 @@
 						}
 					}
 				},
-				"description": "Authenticate with phone number + password.\nReturns a JWT which should be sent as `Authorization: Bearer <token>`.\n\nSecurity: API token (X-Api-Token header) or Basic Auth.",
+				"description": "Authenticate with phone number + password.\nReturns a JWT which should be sent as `Authorization: Bearer <token>`.\n\nSecurity: Basic Auth (system credentials).",
 				"tags": [
 					"Auth"
 				],
 				"security": [
-					{
-						"bearerAuth": []
-					},
 					{
 						"basicAuth": []
 					}

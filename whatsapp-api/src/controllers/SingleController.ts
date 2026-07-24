@@ -200,7 +200,7 @@ function mapWAStateToClientStatus(state: WAState | null): ClientStatus {
  */
 @Route('single')
 @Tags('Single')
-@Security('basicAuth')
+@Security('jwtAuth')
 export class SingleController extends Controller {
     private client: Promise<WhatsAppClientWithCache>;
 
@@ -322,34 +322,6 @@ export class SingleController extends Controller {
             res.setHeader('Content-Disposition', `inline; filename="${media.filename}"`);
         }
         res.end(Buffer.from(media.data, 'base64'));
-    }
-
-    /**
-     * Get the current WhatsApp client connection state.
-     * Returns the raw WAState value along with a simplified status and readiness flag.
-     */
-    @Get('client/state')
-    async getClientState(): Promise<ClientStateResponse> {
-        const client = await this.client;
-        try {
-            const state = await client.getState();
-            const isQrState = state === WAState.UNPAIRED || state === WAState.UNPAIRED_IDLE || state === WAState.PAIRING;
-            return {
-                waState: state,
-                status: mapWAStateToClientStatus(state),
-                qrAvailable: isQrState,
-                qrDataURL: isQrState ? client.qrDataURL : null,
-                ready: state === WAState.CONNECTED,
-            };
-        } catch (error) {
-            return {
-                waState: 'UNKNOWN',
-                status: 'initializing',
-                qrAvailable: false,
-                qrDataURL: null,
-                ready: false,
-            };
-        }
     }
 
     /**
@@ -517,6 +489,41 @@ export class SingleController extends Controller {
                 error: err?.message ?? 'WhatsApp client not ready',
                 retryAfterSeconds: 10,
             });
+        }
+    }
+}
+
+@Route('single')
+@Tags('Single')
+export class StateController extends Controller {
+    private client: Promise<WhatsAppClientWithCache>;
+
+    constructor() {
+        super();
+        this.client = CLIENT;
+    }
+
+    @Get('client/state')
+    async getState(): Promise<ClientStateResponse> {
+        const client = await this.client;
+        try {
+            const state = await client.getState();
+            const isQrState = state === WAState.UNPAIRED || state === WAState.UNPAIRED_IDLE || state === WAState.PAIRING;
+            return {
+                waState: state,
+                status: mapWAStateToClientStatus(state),
+                qrAvailable: isQrState,
+                qrDataURL: isQrState ? client.qrDataURL : null,
+                ready: state === WAState.CONNECTED,
+            };
+        } catch (error) {
+            return {
+                waState: 'UNKNOWN',
+                status: 'initializing',
+                qrAvailable: false,
+                qrDataURL: null,
+                ready: false,
+            };
         }
     }
 }

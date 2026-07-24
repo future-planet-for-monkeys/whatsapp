@@ -6,10 +6,10 @@ import ChatList from '../components/chat/ChatList';
 
 export default function ChatsPage(): React.ReactElement {
   const navigate = useNavigate();
-  const clearCredentials = useAuthStore((state) => state.clearCredentials);
+  const clearToken = useAuthStore((state) => state.clearToken);
 
   const handleLogout = (): void => {
-    clearCredentials();
+    clearToken();
     navigate('/login');
   };
 

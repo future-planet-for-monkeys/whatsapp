@@ -6,6 +6,8 @@ import {  fetchMiddlewares, ExpressTemplateService } from '@tsoa/runtime';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { SingleController } from './../controllers/SingleController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { StateController } from './../controllers/SingleController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { AuthController } from './../controllers/AuthController';
 import { expressAuthentication } from './../middleware/auth';
 // @ts-ignore - no great way to install types from subpackage
@@ -182,7 +184,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 includeArchived: {"default":false,"in":"query","name":"includeArchived","dataType":"boolean"},
         };
         app.get('/single/chats/list',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.getChats)),
 
@@ -214,7 +216,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.get('/single/chats/:id',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.getChatById)),
 
@@ -246,7 +248,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/chats/:id/read',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.markAsRead)),
 
@@ -281,7 +283,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 badRequest: {"in":"res","name":"400","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"error":{"dataType":"string","required":true}}},
         };
         app.get('/single/chats/:id/messages',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.getChatMessages)),
 
@@ -315,7 +317,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 badRequest: {"in":"res","name":"400","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"error":{"dataType":"string","required":true}}},
         };
         app.get('/single/messages/:id/media',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.downloadMedia)),
 
@@ -342,36 +344,6 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsSingleController_getClientState: Record<string, TsoaRoute.ParameterSchema> = {
-        };
-        app.get('/single/client/state',
-            authenticateMiddleware([{"basicAuth":[]}]),
-            ...(fetchMiddlewares<RequestHandler>(SingleController)),
-            ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.getClientState)),
-
-            async function SingleController_getClientState(request: ExRequest, response: ExResponse, next: any) {
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            let validatedArgs: any[] = [];
-            try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsSingleController_getClientState, request, response });
-
-                const controller = new SingleController();
-
-              await templateService.apiHandler({
-                methodName: 'getClientState',
-                controller,
-                response,
-                next,
-                validatedArgs,
-                successStatus: undefined,
-              });
-            } catch (err) {
-                return next(err);
-            }
-        });
-        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSingleController_getAvatar: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 contactId: {"in":"path","name":"contactId","required":true,"dataType":"string"},
@@ -379,7 +351,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 badGatewayResponse: {"in":"res","name":"502","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.get('/single/avatar/:contactId',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.getAvatar)),
 
@@ -411,7 +383,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/contacts/info',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.getContactInformation)),
 
@@ -443,7 +415,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/messages/send-text',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.sendMessage)),
 
@@ -476,7 +448,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.post('/single/messages/:chatId/send-media',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             upload.fields([
                 {
                     name: "file",
@@ -515,7 +487,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 serviceUnavailable: {"in":"res","name":"503","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"retryAfterSeconds":{"dataType":"double","required":true},"error":{"dataType":"string","required":true}}},
         };
         app.get('/single/check',
-            authenticateMiddleware([{"basicAuth":[]}]),
+            authenticateMiddleware([{"jwtAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(SingleController)),
             ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.checkPhone)),
 
@@ -542,11 +514,40 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsStateController_getState: Record<string, TsoaRoute.ParameterSchema> = {
+        };
+        app.get('/single/client/state',
+            ...(fetchMiddlewares<RequestHandler>(StateController)),
+            ...(fetchMiddlewares<RequestHandler>(StateController.prototype.getState)),
+
+            async function StateController_getState(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsStateController_getState, request, response });
+
+                const controller = new StateController();
+
+              await templateService.apiHandler({
+                methodName: 'getState',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsAuthController_signup: Record<string, TsoaRoute.ParameterSchema> = {
                 body: {"in":"body","name":"body","required":true,"ref":"CreateUserRequest"},
         };
         app.post('/auth/signup',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(AuthController)),
             ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.signup)),
 
@@ -577,7 +578,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"password":{"dataType":"string","required":true},"phoneNumber":{"dataType":"string","required":true}}},
         };
         app.post('/auth/login',
-            authenticateMiddleware([{"bearerAuth":[]},{"basicAuth":[]}]),
+            authenticateMiddleware([{"basicAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(AuthController)),
             ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.login)),
 
