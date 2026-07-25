@@ -194,14 +194,35 @@
 					},
 					"readBy": {
 						"properties": {
+							"users": {
+								"items": {
+									"properties": {
+										"name": {
+											"type": "string"
+										},
+										"userId": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"name",
+										"userId"
+									],
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"me": {
+								"type": "boolean"
+							},
 							"someone": {
 								"type": "boolean"
 							}
 						},
-						"additionalProperties": {
-							"type": "boolean"
-						},
+						"additionalProperties": {},
 						"required": [
+							"users",
+							"me",
 							"someone"
 						],
 						"type": "object"

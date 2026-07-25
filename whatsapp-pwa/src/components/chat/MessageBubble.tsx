@@ -3,6 +3,7 @@ import { MessageDto } from '../../api/types';
 import { format } from 'date-fns';
 import Avatar from '../ui/Avatar';
 import MediaBubble from './MediaBubble';
+import SeenByBubbles from './SeenByBubbles';
 
 interface MessageBubbleProps {
   message: MessageDto;
@@ -92,7 +93,7 @@ export default function MessageBubble({
           )}
 
           {/* Message Content */}
-          <div className="text-sm break-words pr-12">
+          <div className={`text-sm break-words ${message.readBy?.users && message.readBy.users.length > 0 ? 'pr-20' : 'pr-12'}`}>
             <MediaBubble
               messageId={id._serialized}
               type={type}
@@ -102,7 +103,10 @@ export default function MessageBubble({
           </div>
 
           {/* Timestamp */}
-          <div className="absolute bottom-1 right-2 flex items-center space-x-1">
+          <div className="absolute bottom-1 right-2 flex items-center space-x-1.5">
+            {message.readBy?.users && message.readBy.users.length > 0 && (
+              <SeenByBubbles users={message.readBy.users} />
+            )}
             <span className="text-[10px] text-gray-500 select-none">{timeStr}</span>
           </div>
         </div>

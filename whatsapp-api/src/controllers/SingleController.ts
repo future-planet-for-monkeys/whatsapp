@@ -72,8 +72,10 @@ export interface MessageDto {
         phoneNumber: string;
     }
     readBy: {
-        [userId: string]: boolean; // Maps userId to a boolean indicating if the user has read the message
+        [userId: string]: any; // Maps userId to a boolean indicating if the user has read the message
         someone: boolean; // Indicates if at least one user has read the message
+        me: boolean; // Indicates if the current user has read the message
+        users: { userId: string; name: string }[];
     };
     /** Unix epoch seconds */
     timestamp: number;
@@ -86,8 +88,8 @@ export interface ContactInfoDto {
     avatarUrl: string | null;
 }
 
-async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Chat): Promise<MessageDto | null> {
-    const lastMessagePromise = chat.lastMessage ? toMessageDto(client, chat.lastMessage, false) : null;
+async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Chat, currentUserId: string): Promise<MessageDto | null> {
+    const lastMessagePromise = chat.lastMessage ? toMessageDto(client, chat.lastMessage,currentUserId,  false) : null;
     const lastMessage = await lastMessagePromise;
     if (lastMessage && lastMessage.type !== 'unsupported') {
         return lastMessage;
@@ -95,12 +97,12 @@ async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Cha
     const messages = await chat.fetchMessages({ limit: 10 });
     const lastAllowed = messages.reverse().find(msg => toAllowedType(msg.type) !== 'unsupported');
     if (lastAllowed) {
-        return await toMessageDto(client, lastAllowed, false);
+        return await toMessageDto(client, lastAllowed, currentUserId, false);
     }
     return null;
 }
 
-async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImmediately = false): Promise<ChatDto> {
+async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, currentUserId: string, resolveImmediately = false): Promise<ChatDto> {
     const avatarUrl = await client.resolveAvatar(chat.id._serialized, resolveImmediately);
     return {
         archived: chat.archived,
@@ -114,13 +116,13 @@ async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImm
         // server-side and always returns a plain, unencrypted image.
         chatAvatarUrl: avatarUrl?.avatarUrl ? `/avatar/${encodeURIComponent(chat.id._serialized)}` : null,
         unreadCount: chat.unreadCount,
-        lastMessage: await lastAllowedTypeMessage(client, chat),
+        lastMessage: await lastAllowedTypeMessage(client, chat, currentUserId),
         pinned: chat.pinned,
         timestamp: chat.timestamp,
     };
 }
 
-async function toMessageDto(client: WhatsAppClientWithCache, message: Message, resolveImmediately = false): Promise<MessageDto> {
+async function toMessageDto(client: WhatsAppClientWithCache, message: Message, currentUserId: string, resolveImmediately = false): Promise<MessageDto> {
     const authorId = message.author || message.from;
     const contactInfo = await client.resolveContactInfo(authorId, resolveImmediately);
     const messageId = message.id._serialized;
@@ -128,7 +130,7 @@ async function toMessageDto(client: WhatsAppClientWithCache, message: Message, r
     // Enrich with Prisma-backed metadata (best-effort — defaults on miss)
     const [sender, readBy] = await Promise.all([
         getMessageSender(messageId),
-        getMessageReadBy(messageId),
+        getMessageReadBy(messageId, currentUserId),
     ]);
 
     return {
@@ -235,6 +237,7 @@ export class SingleController extends Controller {
         @Query() limit = 50,
         @Query() offset = 0,
         @Query() includeArchived = false,
+        @Request() req: ExpressRequest,
     ): Promise<ChatDto[]> {
         const client = await this.client;
         const chats = await client.getChats();
@@ -244,13 +247,14 @@ export class SingleController extends Controller {
             .sort((a, b) => b.timestamp - a.timestamp);
         return await Promise.all(
             // 0.4: resolveImmediately = false for list endpoints
-            sorted.slice(offset, offset + limit).map(chat => toChatDto(client, chat, false))
+            sorted.slice(offset, offset + limit).map(chat => toChatDto(client, chat, req.user?.userId || '', false))
         );
     }
 
     @Get('chats/{id}')
     async getChatById(
         @Path() id: string,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<ChatDto> {
         const client = await this.client;
@@ -258,7 +262,7 @@ export class SingleController extends Controller {
         if (!chat) {
             return notFoundResponse(404, { message: 'Chat not found' });
         }
-        return await toChatDto(client, chat, true);
+        return await toChatDto(client, chat, req.user?.userId || '', true);
     }
 
     // ── 0.7: Mark-as-read endpoint ─────────────────────────────────────────
@@ -326,7 +330,7 @@ export class SingleController extends Controller {
             .slice(start, end)
         const result = await Promise.all(
             // 0.4: resolveImmediately = false for list endpoints
-            sliced.map(msg => toMessageDto(client, msg, false))
+            sliced.map(msg => toMessageDto(client, msg, req.user?.userId || '', false))
         ).then(msgs => msgs.filter(msg => msg.type !== 'unsupported')); // Return oldest-first
 
         // Implicitly mark fetched messages as seen by the requesting user.
@@ -485,7 +489,7 @@ export class SingleController extends Controller {
             ]);
         }
 
-        return toMessageDto(client, messageResult, true);
+        return toMessageDto(client, messageResult, req.user?.userId || '', true);
     }
 
     @Post('messages/{chatId}/send-media')
@@ -516,7 +520,7 @@ export class SingleController extends Controller {
             ]);
         }
 
-        return toMessageDto(client, messageResult, true);
+        return toMessageDto(client, messageResult, req.user?.userId || '', true);
     }
 
     // ── 0.6: Return whatsappId in check response ───────────────────────────

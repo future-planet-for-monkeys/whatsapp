@@ -181,3 +181,26 @@ index 540078a..b482529 100644
              if (alt) {
                  res.isBlocked = !!window
                      .require('WAWebCollections')
+diff --git a/node_modules/whatsapp-web.js/src/util/Puppeteer.js b/node_modules/whatsapp-web.js/src/util/Puppeteer.js
+index 54df700..99bff56 100644
+--- a/node_modules/whatsapp-web.js/src/util/Puppeteer.js
++++ b/node_modules/whatsapp-web.js/src/util/Puppeteer.js
+@@ -17,7 +17,17 @@ async function exposeFunctionIfAbsent(page, name, fn) {
+     if (exist) {
+         return;
+     }
+-    await page.exposeFunction(name, fn);
++    try {
++        await page.exposeFunction(name, fn);
++    } catch (err) {
++        // After a frame navigation the window context is fresh (so the
++        // evaluate check above returns false), but the CDP-level binding
++        // from a previous exposeFunction call may still be alive.  Ignore
++        // "already exists" errors instead of crashing the whole inject flow.
++        if (!err.message.includes('already exists')) {
++            throw err;
++        }
++    }
+ }
+ 
+ module.exports = { exposeFunctionIfAbsent };

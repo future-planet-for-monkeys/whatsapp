@@ -7,6 +7,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useChat,
   useChatMessages,
@@ -44,6 +45,7 @@ export default function ChatView({
 }: ChatViewProps): React.ReactElement {
   const [searchParams] = useSearchParams();
   const initialMessage = searchParams.get("message") || "";
+  const queryClient = useQueryClient();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -177,6 +179,13 @@ export default function ChatView({
   useEffect(() => {
     triggerMarkAsRead();
   }, [chatId, chat?.unreadCount, triggerMarkAsRead]);
+
+  // Invalidate chats list query once messages are successfully fetched (and thus marked seen server-side)
+  useEffect(() => {
+    if (page0.isSuccess && page0.data) {
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    }
+  }, [page0.isSuccess, page0.data, queryClient]);
 
   // --- THE PIN: re-assert bottom on every layout change ---------------------
   // This is the whole fix. Anything that changes the content's height fires
@@ -368,6 +377,16 @@ export default function ChatView({
         name: "Me",
         avatarUrl: null,
       },
+      sentByUser: {
+        userId: "",
+        name: "Me",
+        phoneNumber: "",
+      },
+      readBy: {
+        someone: false,
+        me: true,
+        users: [],
+      },
       timestamp: Math.floor(Date.now() / 1000),
     };
 
@@ -424,6 +443,16 @@ export default function ChatView({
         pn: null,
         name: "Me",
         avatarUrl: null,
+      },
+      sentByUser: {
+        userId: "",
+        name: "Me",
+        phoneNumber: "",
+      },
+      readBy: {
+        someone: false,
+        me: true,
+        users: [],
       },
       timestamp: Math.floor(Date.now() / 1000),
     };

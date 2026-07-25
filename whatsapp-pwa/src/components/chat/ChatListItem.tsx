@@ -9,7 +9,7 @@ interface ChatListItemProps {
 }
 
 export default function ChatListItem({ chat }: ChatListItemProps): React.ReactElement {
-  const hasUnread = chat.unreadCount > 0;
+  const hasUnread = chat.lastMessage?.readBy ? !chat.lastMessage.readBy.me : false;
   const previewText = getMessagePreview(chat.lastMessage);
   const formattedTime = formatChatTimestamp(chat.timestamp);
 
@@ -57,7 +57,7 @@ export default function ChatListItem({ chat }: ChatListItemProps): React.ReactEl
           <p className={`text-sm truncate flex-1 ${hasUnread ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
             {previewText || '\u00A0'}
           </p>
-          {hasUnread && (
+          {chat.unreadCount > 0 && (
             <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-whatsapp-green text-white text-xs font-bold shrink-0">
               {chat.unreadCount}
             </span>

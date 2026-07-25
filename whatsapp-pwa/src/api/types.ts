@@ -36,6 +36,17 @@ export interface MessageDto {
   hasMedia: boolean;
   type: AllowedMessageTypes;
   from: ContactInfoDto;
+  sentByUser: {
+    userId: string;
+    name: string;
+    phoneNumber: string;
+  };
+  readBy: {
+    [userId: string]: any;
+    someone: boolean;
+    me: boolean;
+    users: { userId: string; name: string }[];
+  };
   timestamp: number; // epoch seconds — multiply by 1000 for Date
 }
 

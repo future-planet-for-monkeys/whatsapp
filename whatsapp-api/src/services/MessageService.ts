@@ -19,8 +19,10 @@ export interface MessageSenderInfo {
 }
 
 export type ReadByMap = {
-  [userId: string]: boolean;
+  [userId: string]: any;
   someone: boolean;
+  me: boolean; // Indicates if the current user has read the message
+  users: { userId: string; name: string }[];
 };
 
 // ── Write helpers ───────────────────────────────────────────────────────────
@@ -110,18 +112,23 @@ export async function getMessageSender(
 /**
  * Build the readBy map for a message from the SeenMessage join table.
  */
-export async function getMessageReadBy(messageId: string): Promise<ReadByMap> {
+export async function getMessageReadBy(messageId: string, currentUserId: string): Promise<ReadByMap> {
   const prisma = getPrisma();
   const seenRecords = await prisma.seenMessage.findMany({
     where: { messageId },
     include: { user: true },
   });
 
-  const readBy: ReadByMap = { someone: false };
+  const readBy: ReadByMap = { someone: false, me: false, users: [] };
 
   for (const record of seenRecords) {
     readBy[record.user.id] = true;
     readBy.someone = true;
+    readBy.me = readBy.me || record.user.id === currentUserId; // Mark that the current user has read the message
+    readBy.users.push({
+      userId: record.user.id,
+      name: record.user.name,
+    });
   }
 
   return readBy;

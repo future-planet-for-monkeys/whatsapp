@@ -103,7 +103,7 @@ const models: TsoaRoute.Models = {
             "type": {"ref":"AllowedMessageTypes","required":true},
             "from": {"ref":"ContactInfoDto","required":true},
             "sentByUser": {"dataType":"nestedObjectLiteral","nestedProperties":{"phoneNumber":{"dataType":"string","required":true},"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}},"required":true},
-            "readBy": {"dataType":"nestedObjectLiteral","nestedProperties":{"someone":{"dataType":"boolean","required":true}},"additionalProperties":{"dataType":"boolean"},"required":true},
+            "readBy": {"dataType":"nestedObjectLiteral","nestedProperties":{"users":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}}},"required":true},"me":{"dataType":"boolean","required":true},"someone":{"dataType":"boolean","required":true}},"additionalProperties":{"dataType":"any"},"required":true},
             "timestamp": {"dataType":"double","required":true},
         },
         "additionalProperties": false,
@@ -184,6 +184,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
                 offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
                 includeArchived: {"default":false,"in":"query","name":"includeArchived","dataType":"boolean"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
         app.get('/single/chats/list',
             authenticateMiddleware([{"jwtAuth":[]}]),
@@ -215,6 +216,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSingleController_getChatById: Record<string, TsoaRoute.ParameterSchema> = {
                 id: {"in":"path","name":"id","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
         };
         app.get('/single/chats/:id',
