@@ -78,9 +78,14 @@ const models: TsoaRoute.Models = {
         "enums": ["sticker"],
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "WAWebJS.MessageTypes.REVOKED": {
+        "dataType": "refEnum",
+        "enums": ["revoked"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AllowedMessageTypes": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"ref":"WAWebJS.MessageTypes.TEXT"},{"ref":"WAWebJS.MessageTypes.IMAGE"},{"ref":"WAWebJS.MessageTypes.VIDEO"},{"ref":"WAWebJS.MessageTypes.AUDIO"},{"ref":"WAWebJS.MessageTypes.VOICE"},{"ref":"WAWebJS.MessageTypes.DOCUMENT"},{"ref":"WAWebJS.MessageTypes.STICKER"},{"dataType":"enum","enums":["unsupported"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"ref":"WAWebJS.MessageTypes.TEXT"},{"ref":"WAWebJS.MessageTypes.IMAGE"},{"ref":"WAWebJS.MessageTypes.VIDEO"},{"ref":"WAWebJS.MessageTypes.AUDIO"},{"ref":"WAWebJS.MessageTypes.VOICE"},{"ref":"WAWebJS.MessageTypes.DOCUMENT"},{"ref":"WAWebJS.MessageTypes.STICKER"},{"ref":"WAWebJS.MessageTypes.REVOKED"},{"dataType":"enum","enums":["unsupported"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "ContactInfoDto": {
@@ -90,6 +95,17 @@ const models: TsoaRoute.Models = {
             "pn": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "name": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "avatarUrl": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ReactionDto": {
+        "dataType": "refObject",
+        "properties": {
+            "emoji": {"dataType":"string","required":true},
+            "count": {"dataType":"double","required":true},
+            "reactedByMe": {"dataType":"boolean","required":true},
+            "users": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"name":{"dataType":"string","required":true},"userId":{"dataType":"string"}}},"required":true},
         },
         "additionalProperties": false,
     },
@@ -105,6 +121,11 @@ const models: TsoaRoute.Models = {
             "sentByUser": {"dataType":"nestedObjectLiteral","nestedProperties":{"phoneNumber":{"dataType":"string","required":true},"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}},"required":true},
             "readBy": {"dataType":"nestedObjectLiteral","nestedProperties":{"users":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}}},"required":true},"me":{"dataType":"boolean","required":true},"someone":{"dataType":"boolean","required":true}},"additionalProperties":{"dataType":"any"},"required":true},
             "timestamp": {"dataType":"double","required":true},
+            "isEdited": {"dataType":"boolean","required":true},
+            "editedBy": {"dataType":"union","subSchemas":[{"dataType":"nestedObjectLiteral","nestedProperties":{"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}}},{"dataType":"enum","enums":[null]}],"required":true},
+            "isDeleted": {"dataType":"boolean","required":true},
+            "deletedBy": {"dataType":"union","subSchemas":[{"dataType":"nestedObjectLiteral","nestedProperties":{"name":{"dataType":"string","required":true},"userId":{"dataType":"string","required":true}}},{"dataType":"enum","enums":[null]}],"required":true},
+            "reactions": {"dataType":"array","array":{"dataType":"refObject","ref":"ReactionDto"},"required":true},
         },
         "additionalProperties": false,
     },
@@ -478,6 +499,109 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'sendMedia',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSingleController_editMessage: Record<string, TsoaRoute.ParameterSchema> = {
+                id: {"in":"path","name":"id","required":true,"dataType":"string"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newBody":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
+                forbiddenResponse: {"in":"res","name":"403","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
+        };
+        app.post('/single/messages/:id/edit',
+            authenticateMiddleware([{"jwtAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SingleController)),
+            ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.editMessage)),
+
+            async function SingleController_editMessage(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSingleController_editMessage, request, response });
+
+                const controller = new SingleController();
+
+              await templateService.apiHandler({
+                methodName: 'editMessage',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSingleController_deleteMessage: Record<string, TsoaRoute.ParameterSchema> = {
+                id: {"in":"path","name":"id","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
+                forbiddenResponse: {"in":"res","name":"403","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
+        };
+        app.post('/single/messages/:id/delete',
+            authenticateMiddleware([{"jwtAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SingleController)),
+            ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.deleteMessage)),
+
+            async function SingleController_deleteMessage(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSingleController_deleteMessage, request, response });
+
+                const controller = new SingleController();
+
+              await templateService.apiHandler({
+                methodName: 'deleteMessage',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSingleController_reactToMessage: Record<string, TsoaRoute.ParameterSchema> = {
+                id: {"in":"path","name":"id","required":true,"dataType":"string"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"emoji":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                notFoundResponse: {"in":"res","name":"404","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"message":{"dataType":"string","required":true}}},
+        };
+        app.post('/single/messages/:id/react',
+            authenticateMiddleware([{"jwtAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SingleController)),
+            ...(fetchMiddlewares<RequestHandler>(SingleController.prototype.reactToMessage)),
+
+            async function SingleController_reactToMessage(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSingleController_reactToMessage, request, response });
+
+                const controller = new SingleController();
+
+              await templateService.apiHandler({
+                methodName: 'reactToMessage',
                 controller,
                 response,
                 next,

@@ -30,6 +30,13 @@ export type AllowedMessageTypes =
   | 'sticker'
   | 'unsupported';
 
+export interface ReactionDto {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  users: { userId?: string; name: string }[];
+}
+
 export interface MessageDto {
   id: MessageIdDto;
   body: string;
@@ -48,6 +55,11 @@ export interface MessageDto {
     users: { userId: string; name: string }[];
   };
   timestamp: number; // epoch seconds — multiply by 1000 for Date
+  isEdited?: boolean;
+  editedBy?: { userId: string; name: string } | null;
+  isDeleted?: boolean;
+  deletedBy?: { userId: string; name: string } | null;
+  reactions?: ReactionDto[];
 }
 
 export interface ChatDto {

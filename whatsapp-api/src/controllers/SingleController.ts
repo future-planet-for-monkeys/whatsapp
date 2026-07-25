@@ -4,7 +4,17 @@ import { CLIENT } from "../client";
 import { WhatsAppClientWithCache } from "../services/WhatsAppService.v2";
 import type { Request as ExpressRequest } from "express";
 import fs from "node:fs";
-import { getMessageSender, getMessageReadBy, upsertMessage, markMessageSent, markMessageSeen } from "../services/MessageService";
+import {
+    getMessageSender,
+    getMessageReadBy,
+    upsertMessage,
+    markMessageSent,
+    markMessageSeen,
+    logMessageChange,
+    getMessageEditDeleteInfo,
+    setMessageReaction,
+    getReactionAttribution,
+} from "../services/MessageService";
 
 // ── 0.8: Widen the union to match real-world WhatsApp types ────────────────
 export type AllowedMessageTypes =
@@ -15,12 +25,14 @@ export type AllowedMessageTypes =
     | MessageTypes.VOICE      // 'ptt' — voice notes, extremely common
     | MessageTypes.DOCUMENT   // 'document'
     | MessageTypes.STICKER    // 'sticker'
+    | MessageTypes.REVOKED
     | 'unsupported';
 
 const RENDERABLE = new Set<string>([
     MessageTypes.TEXT, MessageTypes.IMAGE, MessageTypes.VIDEO,
     MessageTypes.AUDIO, MessageTypes.VOICE, MessageTypes.DOCUMENT,
     MessageTypes.STICKER,
+    MessageTypes.REVOKED,
 ]);
 
 function toAllowedType(type: string): AllowedMessageTypes {
@@ -60,6 +72,17 @@ export interface MessageIdDto {
     _serialized: string;
 }
 
+export interface ReactionDto {
+    /** The emoji character */
+    emoji: string;
+    /** Number of senders who reacted with this emoji (from WhatsApp live data) */
+    count: number;
+    /** Whether the current WhatsApp identity has reacted with this emoji */
+    reactedByMe: boolean;
+    /** App users who set this reaction (from local DB attribution) */
+    users: { userId?: string; name: string }[];
+}
+
 export interface MessageDto {
     id: MessageIdDto;
     body: string;
@@ -67,7 +90,7 @@ export interface MessageDto {
     type: AllowedMessageTypes;
     from: ContactInfoDto;
     sentByUser: {
-        userId: string; 
+        userId: string;
         name: string;
         phoneNumber: string;
     }
@@ -79,6 +102,16 @@ export interface MessageDto {
     };
     /** Unix epoch seconds */
     timestamp: number;
+    /** Whether the message has been edited (via our app) */
+    isEdited: boolean;
+    /** Who performed the last edit, if any */
+    editedBy: { userId: string; name: string } | null;
+    /** Whether the message has been deleted (via our app) */
+    isDeleted: boolean;
+    /** Who performed the deletion, if any */
+    deletedBy: { userId: string; name: string } | null;
+    /** Aggregated reactions from WhatsApp live data, enriched with local attribution */
+    reactions: ReactionDto[];
 }
 
 export interface ContactInfoDto {
@@ -128,10 +161,56 @@ async function toMessageDto(client: WhatsAppClientWithCache, message: Message, c
     const messageId = message.id._serialized;
 
     // Enrich with Prisma-backed metadata (best-effort — defaults on miss)
-    const [sender, readBy] = await Promise.all([
+    const [sender, readBy, editDeleteInfo, reactionAttribution] = await Promise.all([
         getMessageSender(messageId),
         getMessageReadBy(messageId, currentUserId),
+        getMessageEditDeleteInfo(messageId),
+        getReactionAttribution(messageId),
     ]);
+
+    // Fetch live reactions from WhatsApp (gated on hasReaction to avoid
+    // unnecessary Puppeteer round-trips)
+    let reactions: ReactionDto[] = [];
+    if ((message as any).hasReaction) {
+        try {
+            const liveReactions = await (message as any).getReactions();
+            if (liveReactions && Array.isArray(liveReactions)) {
+                reactions = liveReactions.map((r: any) => {
+                    const senders = (r.senders || []).map((s: any) => ({
+                        name: s.senderId || "Unknown",
+                    }));
+                    // Merge local attribution: if our app user set this emoji,
+                    // include their info
+                    const localUsers: { userId?: string; name: string }[] = [];
+                    if (reactionAttribution && reactionAttribution.emoji === r.aggregateEmoji) {
+                        localUsers.push({
+                            userId: reactionAttribution.userId,
+                            name: reactionAttribution.name,
+                        });
+                    }
+                    // Also include WhatsApp senders
+                    for (const s of senders) {
+                        localUsers.push({ name: s.name });
+                    }
+
+                    return {
+                        emoji: r.aggregateEmoji,
+                        count: r.senders ? r.senders.length : 0,
+                        reactedByMe: r.hasReactionByMe || false,
+                        users: localUsers,
+                    };
+                });
+            }
+        } catch (err) {
+            // getReactions() can fail if the message isn't fully loaded;
+            // silently fall back to empty reactions array
+            console.error(`Failed to fetch reactions for message ${messageId}:`, err);
+        }
+    }
+
+    // Determine if the message is deleted (WhatsApp marks revoked messages
+    // with type 'revoked')
+    const isRevoked = message.type === MessageTypes.REVOKED;
 
     return {
         id: {
@@ -140,13 +219,18 @@ async function toMessageDto(client: WhatsAppClientWithCache, message: Message, c
             id: message.id.id,
             _serialized: message.id._serialized,
         },
-        body: message.body,
-        hasMedia: message.hasMedia,
+        body: isRevoked ? "" : message.body,
+        hasMedia: isRevoked ? false : message.hasMedia,
         type: toAllowedType(message.type),
         from: await toContactInfoDto(client, contactInfo, resolveImmediately),
         sentByUser: sender ?? { userId: '', name: '', phoneNumber: '' },
         readBy,
         timestamp: message.timestamp,
+        isEdited: editDeleteInfo.isEdited,
+        editedBy: editDeleteInfo.editedBy,
+        isDeleted: editDeleteInfo.isDeleted || isRevoked,
+        deletedBy: editDeleteInfo.deletedBy,
+        reactions,
     };
 }
 
@@ -521,6 +605,149 @@ export class SingleController extends Controller {
         }
 
         return toMessageDto(client, messageResult, req.user?.userId || '', true);
+    }
+
+    // ── Message edit endpoint ──────────────────────────────────────────────
+    /**
+     * Edit a previously-sent message.
+     * Only messages sent by the current WhatsApp identity (fromMe) can be edited.
+     * The previous state is logged to MessageLog before the edit is applied.
+     */
+    @Post('messages/{id}/edit')
+    async editMessage(
+        @Path() id: string,
+        @Body() body: { newBody: string },
+        @Request() req: ExpressRequest,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+        @Res() forbiddenResponse: TsoaResponse<403, { message: string }>,
+    ): Promise<MessageDto> {
+        const client = await this.client;
+        const message = await client.getMessageById(id);
+        if (!message) {
+            return notFoundResponse(404, { message: 'Message not found' });
+        }
+        if (!message.fromMe) {
+            return forbiddenResponse(403, { message: 'Can only edit your own messages' });
+        }
+
+        const chatId = message.id.remote;
+
+        // Snapshot the current state before editing
+        const previousData = {
+            body: message.body,
+            type: message.type,
+            hasMedia: message.hasMedia,
+            timestamp: message.timestamp,
+        };
+
+        // Log the change for audit/attribution
+        if (req.user?.userId) {
+            await logMessageChange("EDIT", id, chatId, req.user.userId, previousData, body.newBody);
+        }
+
+        // Apply the edit via WhatsApp
+        await message.edit(body.newBody);
+
+        // Upsert the new state
+        await upsertMessage(id, chatId, { body: body.newBody });
+
+        // Re-fetch the message to get the updated state
+        const updatedMessage = await client.getMessageById(id);
+        if (!updatedMessage) {
+            return notFoundResponse(404, { message: 'Message not found after edit' });
+        }
+
+        return toMessageDto(client, updatedMessage, req.user?.userId || '', true);
+    }
+
+    // ── Message delete endpoint ────────────────────────────────────────────
+    /**
+     * Delete a message for everyone.
+     * Only messages sent by the current WhatsApp identity (fromMe) can be deleted.
+     * The previous state is logged to MessageLog before the delete is applied.
+     */
+    @Post('messages/{id}/delete')
+    async deleteMessage(
+        @Path() id: string,
+        @Request() req: ExpressRequest,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+        @Res() forbiddenResponse: TsoaResponse<403, { message: string }>,
+    ): Promise<MessageDto> {
+        const client = await this.client;
+        const message = await client.getMessageById(id);
+        if (!message) {
+            return notFoundResponse(404, { message: 'Message not found' });
+        }
+        if (!message.fromMe) {
+            return forbiddenResponse(403, { message: 'Can only delete your own messages' });
+        }
+
+        const chatId = message.id.remote;
+
+        // Snapshot the current state before deleting
+        const previousData = {
+            body: message.body,
+            type: message.type,
+            hasMedia: message.hasMedia,
+            timestamp: message.timestamp,
+        };
+
+        // Log the change for audit/attribution
+        if (req.user?.userId) {
+            await logMessageChange("DELETE", id, chatId, req.user.userId, previousData);
+        }
+
+        // Delete for everyone via WhatsApp
+        await message.delete(true);
+
+        // Upsert the revoked state
+        await upsertMessage(id, chatId, { body: "", type: "revoked", hasMedia: false });
+
+        // Re-fetch the message to get the updated (revoked) state
+        const updatedMessage = await client.getMessageById(id);
+        if (!updatedMessage) {
+            return notFoundResponse(404, { message: 'Message not found after delete' });
+        }
+
+        return toMessageDto(client, updatedMessage, req.user?.userId || '', true);
+    }
+
+    // ── Message react endpoint ─────────────────────────────────────────────
+    /**
+     * React to a message with an emoji.
+     * Send an empty string to remove the reaction.
+     * Works on any message (own or received).
+     */
+    @Post('messages/{id}/react')
+    async reactToMessage(
+        @Path() id: string,
+        @Body() body: { emoji: string },
+        @Request() req: ExpressRequest,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+    ): Promise<MessageDto> {
+        const client = await this.client;
+        const message = await client.getMessageById(id);
+        if (!message) {
+            return notFoundResponse(404, { message: 'Message not found' });
+        }
+
+        const chatId = message.id.remote;
+
+        // Persist the reaction attribution locally
+        if (req.user?.userId) {
+            await setMessageReaction(req.user.userId, id, chatId, body.emoji);
+        }
+
+        // Mirror the reaction to WhatsApp
+        await message.react(body.emoji);
+
+        // Re-fetch the message to get the updated state
+        const updatedMessage = await client.getMessageById(id);
+        if (!updatedMessage) {
+            return notFoundResponse(404, { message: 'Message not found after react' });
+        }
+
+        return toMessageDto(client, updatedMessage, req.user?.userId || '', true);
     }
 
     // ── 0.6: Return whatsappId in check response ───────────────────────────

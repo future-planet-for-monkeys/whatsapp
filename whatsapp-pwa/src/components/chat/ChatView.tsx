@@ -14,6 +14,9 @@ import {
   useMarkAsRead,
   useSendText,
   useSendMedia,
+  useEditMessage,
+  useDeleteMessage,
+  useReactToMessage,
 } from "../../api/queries";
 import { MessageDto } from "../../api/types";
 import { formatMessageDateSeparator } from "../../utils/formatters";
@@ -64,6 +67,7 @@ export default function ChatView({
     [],
   );
   const [isLoadingOlder, setIsLoadingOlder] = useState<boolean>(false);
+  const [editingMessage, setEditingMessage] = useState<MessageDto | null>(null);
 
   // Fetch chat details
   const {
@@ -81,6 +85,51 @@ export default function ChatView({
   const markAsReadMutation = useMarkAsRead();
   const sendTextMutation = useSendText();
   const sendMediaMutation = useSendMedia();
+  const editMessageMutation = useEditMessage();
+  const deleteMessageMutation = useDeleteMessage();
+  const reactToMessageMutation = useReactToMessage();
+
+  const handleEditMessage = useCallback((message: MessageDto) => {
+    setEditingMessage(message);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
+
+  const handleSaveEdit = useCallback(async (newText: string) => {
+    if (!editingMessage) return;
+    try {
+      await editMessageMutation.mutateAsync({
+        id: editingMessage.id._serialized,
+        newBody: newText,
+      });
+      setEditingMessage(null);
+      toast.success("Message edited successfully");
+    } catch (error) {
+      toast.error("Failed to edit message");
+    }
+  }, [editingMessage, editMessageMutation]);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    if (!window.confirm("Are you sure you want to delete this message for everyone?")) {
+      return;
+    }
+    try {
+      await deleteMessageMutation.mutateAsync(messageId);
+      toast.success("Message deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete message");
+    }
+  }, [deleteMessageMutation]);
+
+  const handleReactToMessage = useCallback(async (messageId: string, emoji: string) => {
+    try {
+      await reactToMessageMutation.mutateAsync({ id: messageId, emoji });
+    } catch (error) {
+      toast.error("Failed to react to message");
+    }
+  }, [reactToMessageMutation]);
 
   // --- Pin helper -----------------------------------------------------------
   const stickToBottom = useCallback((): void => {
@@ -638,6 +687,9 @@ export default function ChatView({
                     isGroup={chat.isGroup}
                     showDateSeparator={showDateSeparator}
                     dateSeparatorText={dateSeparatorText}
+                    onEdit={handleEditMessage}
+                    onDelete={handleDeleteMessage}
+                    onReact={handleReactToMessage}
                   />
                 </div>
               );
@@ -650,8 +702,11 @@ export default function ChatView({
       <MessageInput
         onSendText={handleSendText}
         onSendFile={handleSendFile}
-        disabled={sendTextMutation.isPending || sendMediaMutation.isPending}
+        disabled={sendTextMutation.isPending || sendMediaMutation.isPending || editMessageMutation.isPending}
         initialValue={initialMessage}
+        editingMessage={editingMessage}
+        onCancelEdit={handleCancelEdit}
+        onSaveEdit={handleSaveEdit}
       />
     </div>
   );

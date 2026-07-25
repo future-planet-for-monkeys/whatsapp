@@ -145,3 +145,45 @@ export function useCheckPhone(): UseMutationResult<CheckResponse, Error, string>
     },
   });
 }
+
+export function useEditMessage(): UseMutationResult<MessageDto, Error, { id: string; newBody: string }> {
+  const queryClient = useQueryClient();
+  return useMutation<MessageDto, Error, { id: string; newBody: string }>({
+    mutationFn: async ({ id, newBody }): Promise<MessageDto> => {
+      const response = await client.post<MessageDto>(`/messages/${id}/edit`, { newBody });
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate messages for the chat to get the updated message list
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
+export function useDeleteMessage(): UseMutationResult<MessageDto, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation<MessageDto, Error, string>({
+    mutationFn: async (id: string): Promise<MessageDto> => {
+      const response = await client.post<MessageDto>(`/messages/${id}/delete`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
+export function useReactToMessage(): UseMutationResult<MessageDto, Error, { id: string; emoji: string }> {
+  const queryClient = useQueryClient();
+  return useMutation<MessageDto, Error, { id: string; emoji: string }>({
+    mutationFn: async ({ id, emoji }): Promise<MessageDto> => {
+      const response = await client.post<MessageDto>(`/messages/${id}/react`, { emoji });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+    },
+  });
+}

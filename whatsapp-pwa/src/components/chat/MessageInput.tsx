@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { MessageDto } from '../../api/types';
 
 interface MessageInputProps {
   onSendText: (text: string) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
   disabled?: boolean;
   initialValue?: string;
+  editingMessage?: MessageDto | null;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (newText: string) => Promise<void>;
 }
 
 export default function MessageInput({
@@ -12,6 +16,9 @@ export default function MessageInput({
   onSendFile,
   disabled = false,
   initialValue = '',
+  editingMessage = null,
+  onCancelEdit,
+  onSaveEdit,
 }: MessageInputProps): React.ReactElement {
   const [text, setText] = useState<string>(initialValue);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -35,6 +42,15 @@ export default function MessageInput({
       setText(initialValue);
     }
   }, [initialValue]);
+
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.body);
+      textareaRef.current?.focus();
+    } else {
+      setText('');
+    }
+  }, [editingMessage]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setText(e.target.value);
@@ -74,7 +90,12 @@ export default function MessageInput({
 
     setIsSending(true);
     try {
-      if (selectedFile) {
+      if (editingMessage && onSaveEdit) {
+        await onSaveEdit(trimmedText);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+      } else if (selectedFile) {
         await onSendFile(selectedFile);
         handleRemoveFile();
       } else if (trimmedText) {
@@ -95,6 +116,29 @@ export default function MessageInput({
 
   return (
     <div className="flex flex-col bg-[#f0f2f5] border-t border-gray-200 px-4 py-2 pb-[calc(8px+env(safe-area-inset-bottom))]">
+      {/* Editing Message Banner */}
+      {editingMessage && (
+        <div className="flex items-center justify-between bg-[#ffeecd] px-3 py-2 rounded-lg mb-2 shadow-sm border border-[#ffd08a]">
+          <div className="flex items-center space-x-2 min-w-0">
+            <span className="text-xl">✏️</span>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-amber-800">Editing message</p>
+              <p className="text-sm text-amber-900 truncate">{editingMessage.body}</p>
+            </div>
+          </div>
+          {onCancelEdit && (
+            <button
+              onClick={onCancelEdit}
+              className="text-amber-700 hover:text-amber-900 p-2.5 rounded-full hover:bg-amber-100 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Selected File Preview Bar */}
       {selectedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg mb-2 shadow-sm border border-gray-200">
@@ -123,7 +167,7 @@ export default function MessageInput({
         {/* Attachment Button */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={isSending || disabled}
+          disabled={isSending || disabled || !!editingMessage}
           className="flex-shrink-0 text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
           title="Attach file"
         >
@@ -150,7 +194,7 @@ export default function MessageInput({
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder={selectedFile ? 'Press send to upload file...' : 'Type a message'}
+            placeholder={editingMessage ? 'Edit your message...' : (selectedFile ? 'Press send to upload file...' : 'Type a message')}
             disabled={isSending || disabled || !!selectedFile}
             rows={1}
             className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-sm text-gray-800 resize-none max-h-[140px] py-1"

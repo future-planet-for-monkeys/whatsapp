@@ -64,6 +64,9 @@ const envSchema = z.object({
   /** Secret used to sign and verify JWT tokens. Must be set in production. */
   JWT_SECRET: z.string().min(10, 'JWT_SECRET must be at least 10 characters').default('dev-secret-do-not-use-in-prod'),
 
+  /** Time window in seconds during which a message can be edited. */
+  MESSAGE_EDIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(180),
+
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   TZ: z.string().default('UTC'),
 });

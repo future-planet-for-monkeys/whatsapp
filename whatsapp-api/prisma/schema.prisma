@@ -27,6 +27,8 @@ model User {
   readChats    ReadChat[]
   sentMessages SentMessage[]
   seenMessages SeenMessage[]
+  messageLogs  MessageLog[]
+  reactions    MessageReaction[]
 }
 
 // ── Chat ────────────────────────────────────────────────────────────────────
@@ -39,6 +41,8 @@ model Chat {
   readByUsers    ReadChat[]      // Users who have read this chat
   sentMessages   SentMessage[]   // Sent-message join records
   seenMessages   SeenMessage[]   // Seen-message join records
+  messageLogs    MessageLog[]    // Edit/delete audit log entries
+  reactions      MessageReaction[] // Reaction records
 }
 
 // ── Message ─────────────────────────────────────────────────────────────────
@@ -51,6 +55,8 @@ model Message {
 
   sentByUsers SentMessage[] // Join records linking to users who sent this
   seenByUsers SeenMessage[] // Join records linking to users who saw this
+  logs        MessageLog[]  // Edit/delete audit log entries
+  reactions   MessageReaction[] // Reaction records
 }
 
 // ── Per-user read-chat tracking ─────────────────────────────────────────────
@@ -90,4 +96,42 @@ model SeenMessage {
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@id([userId, messageId])
+}
+
+// ── Message edit/delete audit log ────────────────────────────────────────────
+// Snapshot of a message's previous state before an edit or delete operation.
+// The original Message row is never deleted — only upserted with new data.
+model MessageLog {
+  id                  String   @id @default(uuid())
+  action              String   // "EDIT" or "DELETE"
+  messageId           String
+  chatId              String
+  userId              String
+  previousMessageData Json     // Snapshot of Message.messageData before the change
+  newBody             String?  // For EDIT: the new body text; for DELETE: null
+  createdAt           DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chat    Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Message reactions ────────────────────────────────────────────────────────
+// Tracks which app user set which reaction on a message.
+// Only one row per messageId may have active = true at a time (enforced in
+// application-layer transaction). WhatsApp itself only supports one active
+// reaction per identity per message, so the "current" reaction is the one
+// with active = true.
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  chatId    String
+  userId    String
+  emoji     String   // The emoji character, or empty string if reaction removed
+  active    Boolean  @default(true) // Whether this is the current active reaction
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  chat    Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

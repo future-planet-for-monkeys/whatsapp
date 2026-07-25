@@ -13,6 +13,7 @@ interface ActionMenuProps {
   title?: string;
   subtitle?: string;
   actions: ActionItem[];
+  onReact?: (emoji: string) => void;
 }
 
 export default function ActionMenu({
@@ -21,6 +22,7 @@ export default function ActionMenu({
   title,
   subtitle,
   actions,
+  onReact,
 }: ActionMenuProps): React.ReactElement | null {
   // Prevent background scrolling when the menu is open
   useEffect(() => {
@@ -58,6 +60,24 @@ export default function ActionMenu({
           <div className="px-4 pb-3 pt-1 sm:pt-3 border-b border-gray-100 select-none">
             {title && <h4 className="text-sm font-semibold text-gray-900 truncate">{title}</h4>}
             {subtitle && <p className="text-xs text-gray-500 truncate mt-0.5">{subtitle}</p>}
+          </div>
+        )}
+
+        {/* Reaction Picker */}
+        {onReact && (
+          <div className="flex justify-around items-center px-4 py-3 border-b border-gray-100 bg-gray-50">
+            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => {
+                  onReact(emoji);
+                  onClose();
+                }}
+                className="text-2xl hover:scale-125 active:scale-95 transition-transform duration-150 p-1"
+              >
+                {emoji}
+              </button>
+            ))}
           </div>
         )}
 

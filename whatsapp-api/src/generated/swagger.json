@@ -97,6 +97,12 @@
 				],
 				"type": "string"
 			},
+			"WAWebJS.MessageTypes.REVOKED": {
+				"enum": [
+					"revoked"
+				],
+				"type": "string"
+			},
 			"AllowedMessageTypes": {
 				"anyOf": [
 					{
@@ -119,6 +125,9 @@
 					},
 					{
 						"$ref": "#/components/schemas/WAWebJS.MessageTypes.STICKER"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.REVOKED"
 					},
 					{
 						"type": "string",
@@ -152,6 +161,49 @@
 					"pn",
 					"name",
 					"avatarUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ReactionDto": {
+				"properties": {
+					"emoji": {
+						"type": "string",
+						"description": "The emoji character"
+					},
+					"count": {
+						"type": "number",
+						"format": "double",
+						"description": "Number of senders who reacted with this emoji (from WhatsApp live data)"
+					},
+					"reactedByMe": {
+						"type": "boolean",
+						"description": "Whether the current WhatsApp identity has reacted with this emoji"
+					},
+					"users": {
+						"items": {
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"userId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"name"
+							],
+							"type": "object"
+						},
+						"type": "array",
+						"description": "App users who set this reaction (from local DB attribution)"
+					}
+				},
+				"required": [
+					"emoji",
+					"count",
+					"reactedByMe",
+					"users"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -231,6 +283,55 @@
 						"type": "number",
 						"format": "double",
 						"description": "Unix epoch seconds"
+					},
+					"isEdited": {
+						"type": "boolean",
+						"description": "Whether the message has been edited (via our app)"
+					},
+					"editedBy": {
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"userId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"name",
+							"userId"
+						],
+						"type": "object",
+						"nullable": true,
+						"description": "Who performed the last edit, if any"
+					},
+					"isDeleted": {
+						"type": "boolean",
+						"description": "Whether the message has been deleted (via our app)"
+					},
+					"deletedBy": {
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"userId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"name",
+							"userId"
+						],
+						"type": "object",
+						"nullable": true,
+						"description": "Who performed the deletion, if any"
+					},
+					"reactions": {
+						"items": {
+							"$ref": "#/components/schemas/ReactionDto"
+						},
+						"type": "array",
+						"description": "Aggregated reactions from WhatsApp live data, enriched with local attribution"
 					}
 				},
 				"required": [
@@ -241,7 +342,12 @@
 					"from",
 					"sentByUser",
 					"readBy",
-					"timestamp"
+					"timestamp",
+					"isEdited",
+					"editedBy",
+					"isDeleted",
+					"deletedBy",
+					"reactions"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -1000,6 +1106,240 @@
 								"required": [
 									"file"
 								]
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/messages/{id}/edit": {
+			"post": {
+				"operationId": "EditMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Edit a previously-sent message.\nOnly messages sent by the current WhatsApp identity (fromMe) can be edited.\nThe previous state is logged to MessageLog before the edit is applied.",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"newBody": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"newBody"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/messages/{id}/delete": {
+			"post": {
+				"operationId": "DeleteMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Delete a message for everyone.\nOnly messages sent by the current WhatsApp identity (fromMe) can be deleted.\nThe previous state is logged to MessageLog before the delete is applied.",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/messages/{id}/react": {
+			"post": {
+				"operationId": "ReactToMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "React to a message with an emoji.\nSend an empty string to remove the reaction.\nWorks on any message (own or received).",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"emoji": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"emoji"
+								],
+								"type": "object"
 							}
 						}
 					}
