@@ -37,7 +37,13 @@ client.interceptors.response.use(
   (error: AxiosError): Promise<never> => {
     if (error.response) {
       const status = error.response.status;
-      if (status === 401 || status === 403) {
+      // Only 401 (Unauthorized) indicates the JWT/credentials are missing,
+      // invalid, or expired — see middleware/auth.ts, which always rejects
+      // with 401 for auth failures. 403 (Forbidden) is used by several
+      // endpoints for unrelated business-logic restrictions (e.g. editing
+      // another user's message, or updating labels on a non-Business
+      // account) and must NOT log the user out.
+      if (status === 401) {
         const { token, clearToken, clearCredentials } = useAuthStore.getState();
         if (token) {
           clearToken();

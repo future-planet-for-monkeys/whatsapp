@@ -52,8 +52,15 @@ export interface UpdateChatLabelsRequest {
  * Returns null if the contact is @lid-only (privacy-restricted, no phone number).
  */
 async function resolvePhoneNumber(client: WhatsAppClientWithCache, chatId: string): Promise<string | null> {
-    const info = await client.resolveContactInfo(chatId, true);
-    return info.pn ?? null;
+    if (chatId.endsWith('@c.us')) {
+        return chatId.split('@')[0] || null;
+    }
+    try {
+        const info = await client.resolveContactInfo(chatId, true);
+        return info.pn ?? null;
+    } catch (err) {
+        return null;
+    }
 }
 
 async function toContactDto(

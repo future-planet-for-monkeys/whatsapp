@@ -50,7 +50,15 @@ export default function ContactEditorModal({
         setFirstName(fullName.trim());
         setLastName('');
       }
-      setSyncToAddressbook(contact.isMyContact);
+      // NOTE: Do NOT derive this from `contact.isMyContact`. That flag only
+      // tells us whether the contact is *already* saved — it says nothing
+      // about the user's sync preference, and for brand-new contacts it's
+      // always `false`. Wiring it up here silently unchecked the "Sync
+      // with phone contacts" box for every new contact right after load,
+      // so saves never propagated to the phone's real address book.
+      // Default stays `true` (see useState above) so new/edited contacts
+      // sync to the phone by default.
+      setSyncToAddressbook(true);
     }
   }, [contact]);
 

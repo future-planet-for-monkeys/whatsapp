@@ -195,7 +195,7 @@ export function useContact(
   return useQuery<ContactDto, Error>({
     queryKey: ['contact', chatId],
     queryFn: async (): Promise<ContactDto> => {
-      const response = await client.get<ContactDto>(`/single/contacts/${chatId}`);
+      const response = await client.get<ContactDto>(`/contacts/${chatId}`);
       return response.data;
     },
     enabled: !!chatId && options?.enabled !== false,
@@ -206,7 +206,7 @@ export function useSaveContact(chatId: string): UseMutationResult<ContactDto, Er
   const queryClient = useQueryClient();
   return useMutation<ContactDto, Error, SaveContactRequest>({
     mutationFn: async (body: SaveContactRequest): Promise<ContactDto> => {
-      const response = await client.post<ContactDto>(`/single/contacts/${chatId}/save`, body);
+      const response = await client.post<ContactDto>(`/contacts/${chatId}/save`, body);
       return response.data;
     },
     onSuccess: (data) => {
@@ -220,7 +220,7 @@ export function useDeleteContact(chatId: string): UseMutationResult<ContactDto, 
   const queryClient = useQueryClient();
   return useMutation<ContactDto, Error, void>({
     mutationFn: async (): Promise<ContactDto> => {
-      const response = await client.post<ContactDto>(`/single/contacts/${chatId}/delete`);
+      const response = await client.post<ContactDto>(`/contacts/${chatId}/delete`);
       return response.data;
     },
     onSuccess: (data) => {
@@ -234,7 +234,7 @@ export function useLabels(options?: { enabled?: boolean }): UseQueryResult<Label
   return useQuery<LabelDto[], Error>({
     queryKey: ['labels'],
     queryFn: async (): Promise<LabelDto[]> => {
-      const response = await client.get<LabelDto[]>('/single/labels');
+      const response = await client.get<LabelDto[]>('/labels');
       return response.data;
     },
     enabled: options?.enabled !== false,
@@ -248,7 +248,7 @@ export function useChatLabels(
   return useQuery<LabelDto[], Error>({
     queryKey: ['chatLabels', chatId],
     queryFn: async (): Promise<LabelDto[]> => {
-      const response = await client.get<LabelDto[]>(`/single/chats/${chatId}/labels`);
+      const response = await client.get<LabelDto[]>(`/chats/${chatId}/labels`);
       return response.data;
     },
     enabled: !!chatId && options?.enabled !== false,
@@ -259,7 +259,7 @@ export function useUpdateChatLabels(chatId: string): UseMutationResult<LabelDto[
   const queryClient = useQueryClient();
   return useMutation<LabelDto[], Error, UpdateChatLabelsRequest>({
     mutationFn: async (body: UpdateChatLabelsRequest): Promise<LabelDto[]> => {
-      const response = await client.post<LabelDto[]>(`/single/chats/${chatId}/labels`, body);
+      const response = await client.post<LabelDto[]>(`/chats/${chatId}/labels`, body);
       return response.data;
     },
     onSuccess: (data) => {
