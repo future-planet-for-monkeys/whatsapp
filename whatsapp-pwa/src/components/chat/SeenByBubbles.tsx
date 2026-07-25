@@ -40,14 +40,14 @@ export default function SeenByBubbles({ users }: SeenByBubblesProps): React.Reac
   const overflowCount = users.length - 3;
 
   return (
-    <div className="flex items-center -space-x-1.5 select-none" title={`Seen by: ${users.map(u => u.name).join(', ')}`}>
+    <div className="flex items-center -space-x-1 select-none" title={`Seen by: ${users.map(u => u.name).join(', ')}`}>
       {visibleUsers.map((user, index) => {
         const firstLetter = user.name?.[0]?.toUpperCase() || '?';
         const bgColor = getBgColor(user.name);
         return (
           <div
             key={user.userId || index}
-            className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-white text-[9px] font-bold border border-white shadow-sm shrink-0 ${bgColor}`}
+            className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold border border-white shadow-sm shrink-0 ${bgColor}`}
             style={{ zIndex: 10 - index }}
           >
             {firstLetter}
@@ -56,7 +56,7 @@ export default function SeenByBubbles({ users }: SeenByBubblesProps): React.Reac
       })}
       {overflowCount > 0 && (
         <div
-          className="w-4.5 h-4.5 rounded-full flex items-center justify-center bg-gray-400 text-white text-[8px] font-bold border border-white shadow-sm shrink-0"
+          className="w-4 h-4 rounded-full flex items-center justify-center bg-gray-400 text-white text-[7px] font-bold border border-white shadow-sm shrink-0"
           style={{ zIndex: 5 }}
         >
           +{overflowCount}

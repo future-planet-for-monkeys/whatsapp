@@ -542,7 +542,25 @@ export class SingleController extends Controller {
         }
 
         const hasCountryCode = phone.trim().startsWith('+') || digits.length >= 11;
-        const candidates = hasCountryCode ? [digits] : [`1${digits}`, `52${digits}`];
+        let candidates: string[];
+        if (hasCountryCode) {
+            candidates = [digits];
+            // Mexico: toggle mobile prefix "1" after country code "52"
+            if (digits.startsWith('521') && digits.length === 13) {
+                // 5218681137923 → also try 528681137923 (landline format)
+                candidates.push('52' + digits.slice(3));
+            } else if (digits.startsWith('52') && !digits.startsWith('521') && digits.length === 12) {
+                // 528681137923 → also try 5218681137923 (mobile format)
+                candidates.push('521' + digits.slice(2));
+            }
+        } else {
+            // No country code detected — try common prefixes
+            candidates = [
+                `1${digits}`,      // US/Canada
+                `521${digits}`,    // Mexico mobile
+                `52${digits}`,     // Mexico landline
+            ];
+        }
 
         try {
             const results = await Promise.all(
