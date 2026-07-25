@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Route, Tags, Security, Res, type TsoaResponse, Path, Post, Body, UploadedFile, Request, Produces } from "tsoa";
 import { type Chat, ChatId, Client, Message, MessageId, MessageMedia, MessageTypes, WAState } from "whatsapp-web.js";
 import { CLIENT } from "../client";
+import { config } from "../config";
 import { WhatsAppClientWithCache } from "../services/WhatsAppService.v2";
 import type { Request as ExpressRequest } from "express";
 import fs from "node:fs";
@@ -628,6 +629,12 @@ export class SingleController extends Controller {
         }
         if (!message.fromMe) {
             return forbiddenResponse(403, { message: 'Can only edit your own messages' });
+        }
+
+        // Enforce edit time window limit
+        const ageInSeconds = (Date.now() / 1000) - message.timestamp;
+        if (ageInSeconds > config.MESSAGE_EDIT_WINDOW_SECONDS) {
+            return forbiddenResponse(403, { message: `Cannot edit messages older than ${config.MESSAGE_EDIT_WINDOW_SECONDS} seconds` });
         }
 
         const chatId = message.id.remote;

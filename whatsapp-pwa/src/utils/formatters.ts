@@ -52,6 +52,9 @@ export function getMessagePreview(lastMessage: MessageDto | null): string {
   if (!lastMessage) {
     return '';
   }
+  if (lastMessage.isDeleted || lastMessage.type === 'revoked') {
+    return '🚫 This message was deleted';
+  }
   switch (lastMessage.type) {
     case 'chat':
       return lastMessage.body;

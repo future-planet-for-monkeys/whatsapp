@@ -28,6 +28,7 @@ export type AllowedMessageTypes =
   | 'ptt'
   | 'document'
   | 'sticker'
+  | 'revoked'
   | 'unsupported';
 
 export interface ReactionDto {

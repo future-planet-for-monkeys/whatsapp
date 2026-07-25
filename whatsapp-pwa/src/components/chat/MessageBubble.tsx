@@ -28,7 +28,8 @@ export default function MessageBubble({
   onDelete,
   onReact,
 }: MessageBubbleProps): React.ReactElement {
-  const { id, body, hasMedia, type, from, timestamp, isEdited, isDeleted, reactions } = message;
+  const { id, body, hasMedia, type, from, timestamp, isEdited, reactions } = message;
+  const isDeleted = !!message.isDeleted || type === 'revoked';
   const isMe = id.fromMe;
   const timeStr = format(new Date(timestamp * 1000), 'HH:mm');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -61,7 +62,9 @@ export default function MessageBubble({
       });
     }
 
-    if (isMe && type === 'chat' && onEdit) {
+    const isWithinEditWindow = (Date.now() / 1000) - timestamp <= 180;
+
+    if (isMe && type === 'chat' && onEdit && isWithinEditWindow) {
       actions.push({
         label: 'Edit Message',
         icon: <Edit className="w-4 h-4" />,
@@ -122,7 +125,7 @@ export default function MessageBubble({
           {/* Message Content */}
           <div className={`text-sm break-words ${message.readBy?.users && message.readBy.users.length > 0 ? 'pr-20' : 'pr-12'} ${reactions && reactions.length > 0 ? 'pb-2' : ''}`}>
             {isDeleted ? (
-              <span className="text-gray-400 italic flex items-center gap-1 select-none">
+              <span className="text-gray-400 flex items-center gap-1 select-none">
                 <span className="text-xs">🚫</span> This message was deleted
               </span>
             ) : (
