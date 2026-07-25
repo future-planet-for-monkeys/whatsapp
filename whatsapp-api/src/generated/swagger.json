@@ -449,6 +449,134 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ContactDto": {
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "WhatsApp serialized ID (e.g. \"1234567890@c.us\")"
+					},
+					"phoneNumber": {
+						"type": "string",
+						"nullable": true,
+						"description": "Phone number digits (e.g. \"12345678901\"), null if unresolvable (@lid-only)"
+					},
+					"name": {
+						"type": "string",
+						"nullable": true,
+						"description": "The contact's name as saved by the current user"
+					},
+					"pushname": {
+						"type": "string",
+						"nullable": true,
+						"description": "The name the contact has configured to be shown publicly"
+					},
+					"shortName": {
+						"type": "string",
+						"nullable": true,
+						"description": "Shortened version of name"
+					},
+					"isMyContact": {
+						"type": "boolean",
+						"description": "Whether this number is saved in the current phone's contacts"
+					},
+					"isBusiness": {
+						"type": "boolean",
+						"description": "Whether the contact is a business"
+					},
+					"isBlocked": {
+						"type": "boolean",
+						"description": "Whether the contact is blocked"
+					},
+					"canEdit": {
+						"type": "boolean",
+						"description": "Whether the contact can be edited (requires resolvable phone number)"
+					},
+					"avatarUrl": {
+						"type": "string",
+						"nullable": true,
+						"description": "Avatar URL path (our proxy endpoint)"
+					}
+				},
+				"required": [
+					"id",
+					"phoneNumber",
+					"name",
+					"pushname",
+					"shortName",
+					"isMyContact",
+					"isBusiness",
+					"isBlocked",
+					"canEdit",
+					"avatarUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SaveContactRequest": {
+				"properties": {
+					"firstName": {
+						"type": "string"
+					},
+					"lastName": {
+						"type": "string"
+					},
+					"syncToAddressbook": {
+						"type": "boolean",
+						"description": "If true, the contact will also be saved to the user's phone address book"
+					}
+				},
+				"required": [
+					"firstName",
+					"lastName",
+					"syncToAddressbook"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"LabelDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"hexColor": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"hexColor"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateChatLabelsRequest": {
+				"properties": {
+					"labelIds": {
+						"items": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "number",
+									"format": "double"
+								}
+							]
+						},
+						"type": "array",
+						"description": "Full set of label IDs to assign to the chat (replaces existing labels)"
+					}
+				},
+				"required": [
+					"labelIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"JWTContents": {
 				"properties": {
 					"userId": {
@@ -1468,6 +1596,366 @@
 				],
 				"security": [],
 				"parameters": []
+			}
+		},
+		"/single/contacts/{chatId}": {
+			"get": {
+				"operationId": "GetContact",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContactDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get contact details for a chat.\nReturns 400 for group chats (contacts are only for 1:1 chats).",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/contacts/{chatId}/save": {
+			"post": {
+				"operationId": "SaveContact",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContactDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Save or edit a contact in the user's address book.\nRequires a resolvable phone number —",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveContactRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/contacts/{chatId}/delete": {
+			"post": {
+				"operationId": "DeleteContact",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContactDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Delete a contact from the user's address book.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/labels": {
+			"get": {
+				"operationId": "GetLabels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/LabelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all available Labels.\nReturns an empty array for non-Business accounts (labels are a WhatsApp Business feature).",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/single/chats/{chatId}/labels": {
+			"get": {
+				"operationId": "GetChatLabels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/LabelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all Labels assigned to a specific chat.\nReturns an empty array for non-Business accounts.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "UpdateChatLabels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/LabelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update the Labels assigned to a chat.\nThe provided labelIds replace the entire set of labels on the chat\n(this is a full-set operation, not an add/remove toggle).\nReturns 403 for non-Business accounts.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateChatLabelsRequest"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/auth/signup": {

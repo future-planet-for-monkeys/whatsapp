@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChatDto } from '../../api/types';
 import Avatar from '../ui/Avatar';
 import { formatChatTimestamp, getMessagePreview } from '../../utils/formatters';
+import ContactEditorModal from '../contact/ContactEditorModal';
 
 interface ChatListItemProps {
   chat: ChatDto;
 }
 
 export default function ChatListItem({ chat }: ChatListItemProps): React.ReactElement {
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const hasUnread = chat.lastMessage?.readBy ? !chat.lastMessage.readBy.me : false;
   const previewText = getMessagePreview(chat.lastMessage);
   const formattedTime = formatChatTimestamp(chat.timestamp);
@@ -37,13 +39,19 @@ export default function ChatListItem({ chat }: ChatListItemProps): React.ReactEl
   };
 
   return (
-    <Link
-      to={`/chat/${encodeURIComponent(chat.id._serialized)}`}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 border-b border-gray-100 transition-colors duration-150 select-none"
-    >
-      <Avatar contact={contact} name={chat.name} size="md" />
+    <>
+      <Link
+        to={`/chat/${encodeURIComponent(chat.id._serialized)}`}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 border-b border-gray-100 transition-colors duration-150 select-none"
+      >
+        <Avatar
+          contact={contact}
+          name={chat.name}
+          size="md"
+          onLongPress={!chat.isGroup ? () => setIsContactModalOpen(true) : undefined}
+        />
 
-      <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className={`text-base text-gray-900 truncate ${hasUnread ? 'font-bold' : 'font-normal'}`}>
             {chat.name}
@@ -64,6 +72,16 @@ export default function ChatListItem({ chat }: ChatListItemProps): React.ReactEl
           )}
         </div>
       </div>
-    </Link>
+      </Link>
+
+      {!chat.isGroup && (
+        <ContactEditorModal
+          isOpen={isContactModalOpen}
+          onClose={() => setIsContactModalOpen(false)}
+          chatId={chat.id._serialized}
+          chatName={chat.name}
+        />
+      )}
+    </>
   );
 }

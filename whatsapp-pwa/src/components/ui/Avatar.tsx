@@ -1,16 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ContactInfoDto } from '../../api/types';
 import { useAuthedBlob } from '../../hooks/useAuthedBlob';
+import { useLongPress } from '../../hooks/useLongPress';
 
 interface AvatarProps {
   contact: ContactInfoDto | null;
   name: string | null | undefined;
   size?: 'sm' | 'md' | 'lg';
+  onLongPress?: () => void;
 }
 
-export default function Avatar({ contact, name, size = 'md' }: AvatarProps): React.ReactElement {
+export default function Avatar({ contact, name, size = 'md', onLongPress }: AvatarProps): React.ReactElement {
   const [isInViewport, setIsInViewport] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const longPressHandlers = useLongPress(
+    () => {
+      if (onLongPress) {
+        onLongPress();
+      }
+    },
+    { threshold: 500 }
+  );
+
+  const handlers = onLongPress ? longPressHandlers : {};
 
   const lid = contact?.lid ?? null;
 
@@ -102,7 +115,8 @@ export default function Avatar({ contact, name, size = 'md' }: AvatarProps): Rea
   return (
     <div
       ref={containerRef}
-      className={`relative flex items-center justify-center rounded-full overflow-hidden select-none shrink-0 ${sizeClasses[size]}`}
+      className={`relative flex items-center justify-center rounded-full overflow-hidden select-none shrink-0 ${sizeClasses[size]} ${onLongPress ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
+      {...handlers}
     >
       {finalSrc && !error ? (
         <img

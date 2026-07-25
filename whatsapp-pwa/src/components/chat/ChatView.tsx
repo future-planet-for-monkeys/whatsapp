@@ -25,6 +25,7 @@ import MessageInput from "./MessageInput";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import Avatar from "../ui/Avatar";
 import toast from "react-hot-toast";
+import ContactEditorModal from "../contact/ContactEditorModal";
 
 interface ChatViewProps {
   chatId: string;
@@ -68,6 +69,7 @@ export default function ChatView({
   );
   const [isLoadingOlder, setIsLoadingOlder] = useState<boolean>(false);
   const [editingMessage, setEditingMessage] = useState<MessageDto | null>(null);
+  const [isContactModalOpen, setIsContactModalOpen] = useState<boolean>(false);
 
   // Fetch chat details
   const {
@@ -599,6 +601,7 @@ export default function ChatView({
             }}
             name={chat.name}
             size="sm"
+            onLongPress={!chat.isGroup ? () => setIsContactModalOpen(true) : undefined}
           />
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-gray-800 truncate">
@@ -708,6 +711,15 @@ export default function ChatView({
         onCancelEdit={handleCancelEdit}
         onSaveEdit={handleSaveEdit}
       />
+
+      {!chat.isGroup && (
+        <ContactEditorModal
+          isOpen={isContactModalOpen}
+          onClose={() => setIsContactModalOpen(false)}
+          chatId={chat.id._serialized}
+          chatName={chat.name}
+        />
+      )}
     </div>
   );
 }

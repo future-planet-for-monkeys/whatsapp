@@ -97,3 +97,32 @@ export interface CheckResponse {
   contactInfo: ContactInfoDto | null;
   registered: boolean;
 }
+
+export interface LabelDto {
+  id: string;
+  name: string;
+  hexColor: string;
+}
+
+export interface ContactDto {
+  id: string;
+  phoneNumber: string | null;
+  name: string | null;
+  pushname: string | null;
+  shortName: string | null;
+  isMyContact: boolean;
+  isBusiness: boolean;
+  isBlocked: boolean;
+  canEdit: boolean;
+  avatarUrl: string | null;
+}
+
+export interface SaveContactRequest {
+  firstName: string;
+  lastName: string;
+  syncToAddressbook: boolean;
+}
+
+export interface UpdateChatLabelsRequest {
+  labelIds: (string | number)[];
+}

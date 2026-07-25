@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, UseQueryResult, UseInfiniteQueryResult, UseMutationResult, InfiniteData } from '@tanstack/react-query';
 import { client } from './client';
-import { ClientStateResponse, ChatDto, MessageDto, CheckResponse } from './types';
+import { ClientStateResponse, ChatDto, MessageDto, CheckResponse, ContactDto, LabelDto, SaveContactRequest, UpdateChatLabelsRequest } from './types';
 
 export function useChat(
   id: string,
@@ -184,6 +184,86 @@ export function useReactToMessage(): UseMutationResult<MessageDto, Error, { id: 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
+    },
+  });
+}
+
+export function useContact(
+  chatId: string,
+  options?: { enabled?: boolean }
+): UseQueryResult<ContactDto, Error> {
+  return useQuery<ContactDto, Error>({
+    queryKey: ['contact', chatId],
+    queryFn: async (): Promise<ContactDto> => {
+      const response = await client.get<ContactDto>(`/single/contacts/${chatId}`);
+      return response.data;
+    },
+    enabled: !!chatId && options?.enabled !== false,
+  });
+}
+
+export function useSaveContact(chatId: string): UseMutationResult<ContactDto, Error, SaveContactRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<ContactDto, Error, SaveContactRequest>({
+    mutationFn: async (body: SaveContactRequest): Promise<ContactDto> => {
+      const response = await client.post<ContactDto>(`/single/contacts/${chatId}/save`, body);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['contact', chatId], data);
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
+export function useDeleteContact(chatId: string): UseMutationResult<ContactDto, Error, void> {
+  const queryClient = useQueryClient();
+  return useMutation<ContactDto, Error, void>({
+    mutationFn: async (): Promise<ContactDto> => {
+      const response = await client.post<ContactDto>(`/single/contacts/${chatId}/delete`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['contact', chatId], data);
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
+export function useLabels(options?: { enabled?: boolean }): UseQueryResult<LabelDto[], Error> {
+  return useQuery<LabelDto[], Error>({
+    queryKey: ['labels'],
+    queryFn: async (): Promise<LabelDto[]> => {
+      const response = await client.get<LabelDto[]>('/single/labels');
+      return response.data;
+    },
+    enabled: options?.enabled !== false,
+  });
+}
+
+export function useChatLabels(
+  chatId: string,
+  options?: { enabled?: boolean }
+): UseQueryResult<LabelDto[], Error> {
+  return useQuery<LabelDto[], Error>({
+    queryKey: ['chatLabels', chatId],
+    queryFn: async (): Promise<LabelDto[]> => {
+      const response = await client.get<LabelDto[]>(`/single/chats/${chatId}/labels`);
+      return response.data;
+    },
+    enabled: !!chatId && options?.enabled !== false,
+  });
+}
+
+export function useUpdateChatLabels(chatId: string): UseMutationResult<LabelDto[], Error, UpdateChatLabelsRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<LabelDto[], Error, UpdateChatLabelsRequest>({
+    mutationFn: async (body: UpdateChatLabelsRequest): Promise<LabelDto[]> => {
+      const response = await client.post<LabelDto[]>(`/single/chats/${chatId}/labels`, body);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['chatLabels', chatId], data);
     },
   });
 }
