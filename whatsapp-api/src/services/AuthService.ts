@@ -90,10 +90,12 @@ export async function authenticateUser(
 }
 
 /**
- * Sign a JWTContents payload into a JWT string.
+ * Sign a JWTContents payload into a JWT string with a configurable expiry.
+ * `expiresIn` accepts any value that jsonwebtoken's `expiresIn` option supports
+ * (e.g. "30d", "90d", "1y", "365d").
  */
-export function signJWT(contents: JWTContents): string {
-  return jwt.sign(contents, config.JWT_SECRET, { expiresIn: "7d" });
+export function signJWT(contents: JWTContents, expiresIn: string = "7d"): string {
+  return jwt.sign(contents, config.JWT_SECRET, { expiresIn: expiresIn as any });
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, UseQueryResult, UseInfiniteQueryResult, UseMutationResult, InfiniteData } from '@tanstack/react-query';
 import { client } from './client';
-import { ClientStateResponse, ChatDto, MessageDto, CheckResponse, ContactDto, LabelDto, SaveContactRequest, UpdateChatLabelsRequest } from './types';
+import { ClientStateResponse, ChatDto, MessageDto, CheckResponse, ContactDto, LabelDto, SaveContactRequest, UpdateChatLabelsRequest, McpTokenResponse } from './types';
 
 export function useChat(
   id: string,
@@ -264,6 +264,19 @@ export function useUpdateChatLabels(chatId: string): UseMutationResult<LabelDto[
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['chatLabels', chatId], data);
+    },
+  });
+}
+
+export function useGenerateMcpToken(): UseMutationResult<McpTokenResponse, Error, string> {
+  return useMutation<McpTokenResponse, Error, string>({
+    mutationFn: async (expiresIn: string): Promise<McpTokenResponse> => {
+      const response = await client.post<McpTokenResponse>(
+        '/auth/mcp-token',
+        { expiresIn },
+        { baseURL: '' },
+      );
+      return response.data;
     },
   });
 }

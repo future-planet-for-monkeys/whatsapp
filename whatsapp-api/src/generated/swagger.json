@@ -2094,6 +2094,63 @@
 				],
 				"parameters": []
 			}
+		},
+		"/auth/mcp-token": {
+			"post": {
+				"operationId": "GenerateMcpToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"expiresIn": {
+											"type": "string"
+										},
+										"token": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"expiresIn",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a long-lived JWT for use with the MCP server.\nThe token is signed with the same secret as regular user JWTs but\nwith a configurable expiry duration.\n\nSecurity: JWT (Authorization: Bearer <token>).",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"expiresIn": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"expiresIn"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"servers": [

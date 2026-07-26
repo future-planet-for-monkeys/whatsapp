@@ -126,3 +126,8 @@ export interface SaveContactRequest {
 export interface UpdateChatLabelsRequest {
   labelIds: (string | number)[];
 }
+
+export interface McpTokenResponse {
+  token: string;
+  expiresIn: string;
+}

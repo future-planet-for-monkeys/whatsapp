@@ -61,4 +61,22 @@ export class AuthController extends Controller {
     // The auth middleware decoded the JWT and attached it to request.user
     return request.user!;
   }
+
+  /**
+   * Generate a long-lived JWT for use with the MCP server.
+   * The token is signed with the same secret as regular user JWTs but
+   * with a configurable expiry duration.
+   *
+   * Security: JWT (Authorization: Bearer <token>).
+   */
+  @Post("mcp-token")
+  @Security("jwtAuth")
+  public async generateMcpToken(
+    @Request() request: ExpressRequest,
+    @Body() body: { expiresIn: string },
+  ): Promise<{ token: string; expiresIn: string }> {
+    const user = request.user!;
+    const token = signJWT({ userId: user.userId, name: user.name }, body.expiresIn);
+    return { token, expiresIn: body.expiresIn };
+  }
 }

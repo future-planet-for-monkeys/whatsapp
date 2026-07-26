@@ -15,6 +15,15 @@ import {
   checkPhone,
   getAvatar,
   WhatsAppApiError,
+  editMessage,
+  deleteMessage,
+  reactToMessage,
+  getContact,
+  saveContact,
+  deleteContact,
+  getLabels,
+  getChatLabels,
+  updateChatLabels,
 } from "./whatsapp-client.js";
 
 // ── Create server ────────────────────────────────────────────────────────────
@@ -533,6 +542,357 @@ server.registerTool(
           {
             type: "text",
             text: `Failed to get avatar: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 12. edit_message ──────────────────────────────────────────────────────────
+
+server.registerTool(
+  "edit_message",
+  {
+    description:
+      "Edit a previously-sent message. Only messages sent by the current WhatsApp identity (fromMe) can be edited.",
+    inputSchema: {
+      messageId: z
+        .string()
+        .describe("The serialized message ID (e.g. 'true_1234567890@c.us_ABC123DEF')"),
+      newBody: z.string().min(1).describe("The new text content for the message"),
+    },
+  },
+  async ({ messageId, newBody }) => {
+    try {
+      const updated = await editMessage(messageId, newBody);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Message edited successfully.\nUpdated message: ${JSON.stringify(updated, null, 2)}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to edit message: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 13. delete_message ────────────────────────────────────────────────────────
+
+server.registerTool(
+  "delete_message",
+  {
+    description:
+      "Delete a message for everyone. Only messages sent by the current WhatsApp identity (fromMe) can be deleted.",
+    inputSchema: {
+      messageId: z
+        .string()
+        .describe("The serialized message ID (e.g. 'true_1234567890@c.us_ABC123DEF')"),
+    },
+  },
+  async ({ messageId }) => {
+    try {
+      const deleted = await deleteMessage(messageId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Message deleted successfully.\nDeleted message state: ${JSON.stringify(deleted, null, 2)}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to delete message: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 14. react_to_message ───────────────────────────────────────────────────────
+
+server.registerTool(
+  "react_to_message",
+  {
+    description:
+      "React to a message with an emoji. Send an empty string to remove the reaction.",
+    inputSchema: {
+      messageId: z
+        .string()
+        .describe("The serialized message ID (e.g. 'true_1234567890@c.us_ABC123DEF')"),
+      emoji: z
+        .string()
+        .describe("The emoji character to react with, or an empty string to remove the reaction"),
+    },
+  },
+  async ({ messageId, emoji }) => {
+    try {
+      const updated = await reactToMessage(messageId, emoji);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Reaction updated successfully.\nUpdated message: ${JSON.stringify(updated, null, 2)}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to react to message: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 15. get_contact ───────────────────────────────────────────────────────────
+
+server.registerTool(
+  "get_contact",
+  {
+    description:
+      "Get contact details for a 1:1 chat. Returns phone number, name, pushname, block status, and more.",
+    inputSchema: {
+      chatId: z
+        .string()
+        .describe("The WhatsApp contact ID (e.g. '1234567890@c.us')"),
+    },
+  },
+  async ({ chatId }) => {
+    try {
+      const contact = await getContact(chatId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(contact, null, 2),
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get contact: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 16. save_contact ──────────────────────────────────────────────────────────
+
+server.registerTool(
+  "save_contact",
+  {
+    description:
+      "Save or edit a contact in the user's address book. Requires a resolvable phone number.",
+    inputSchema: {
+      chatId: z
+        .string()
+        .describe("The WhatsApp contact ID (e.g. '1234567890@c.us')"),
+      firstName: z.string().min(1).describe("First name of the contact"),
+      lastName: z.string().describe("Last name of the contact"),
+      syncToAddressbook: z
+        .boolean()
+        .default(true)
+        .describe("Whether to sync the contact to the phone's physical address book"),
+    },
+  },
+  async ({ chatId, firstName, lastName, syncToAddressbook }) => {
+    try {
+      const contact = await saveContact(chatId, { firstName, lastName, syncToAddressbook });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Contact saved successfully.\nContact: ${JSON.stringify(contact, null, 2)}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to save contact: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 17. delete_contact ────────────────────────────────────────────────────────
+
+server.registerTool(
+  "delete_contact",
+  {
+    description:
+      "Delete a contact from the user's address book.",
+    inputSchema: {
+      chatId: z
+        .string()
+        .describe("The WhatsApp contact ID (e.g. '1234567890@c.us')"),
+    },
+  },
+  async ({ chatId }) => {
+    try {
+      const contact = await deleteContact(chatId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Contact deleted successfully.\nContact: ${JSON.stringify(contact, null, 2)}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to delete contact: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 18. get_labels ────────────────────────────────────────────────────────────
+
+server.registerTool(
+  "get_labels",
+  {
+    description:
+      "Get all available Labels (WhatsApp Business feature). Returns an empty array for non-Business accounts.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const labels = await getLabels();
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(labels, null, 2),
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get labels: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 19. get_chat_labels ───────────────────────────────────────────────────────
+
+server.registerTool(
+  "get_chat_labels",
+  {
+    description:
+      "Get all Labels assigned to a specific chat (WhatsApp Business feature). Returns an empty array for non-Business accounts.",
+    inputSchema: {
+      chatId: z
+        .string()
+        .describe("The WhatsApp chat ID (e.g. '1234567890@c.us')"),
+    },
+  },
+  async ({ chatId }) => {
+    try {
+      const labels = await getChatLabels(chatId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(labels, null, 2),
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get chat labels: ${formatError(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── 20. update_chat_labels ────────────────────────────────────────────────────
+
+server.registerTool(
+  "update_chat_labels",
+  {
+    description:
+      "Update the Labels assigned to a chat. The provided labelIds replace the entire set of labels on the chat (WhatsApp Business feature).",
+    inputSchema: {
+      chatId: z
+        .string()
+        .describe("The WhatsApp chat ID (e.g. '1234567890@c.us')"),
+      labelIds: z
+        .array(z.union([z.string(), z.number()]))
+        .describe("Full set of label IDs to assign to the chat (replaces existing labels)"),
+    },
+  },
+  async ({ chatId, labelIds }) => {
+    try {
+      const labels = await updateChatLabels(chatId, labelIds);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Chat labels updated successfully.\nLabels: ${JSON.stringify(labels, null, 2)}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to update chat labels: ${formatError(e)}`,
           },
         ],
         isError: true,

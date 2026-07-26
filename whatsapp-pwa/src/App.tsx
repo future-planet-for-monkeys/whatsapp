@@ -8,6 +8,7 @@ import PairPage from './pages/PairPage.tsx';
 import ChatsPage from './pages/ChatsPage.tsx';
 import ChatPage from './pages/ChatPage.tsx';
 import NewChatPage from './pages/NewChatPage.tsx';
+import SettingsPage from './pages/SettingsPage.tsx';
 import RequireReady from './components/RequireReady.tsx';
 
 const queryClient = new QueryClient({
@@ -70,6 +71,16 @@ export default function App(): React.ReactElement {
               <ErrorBoundary>
                 <RequireReady>
                   <NewChatPage />
+                </RequireReady>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ErrorBoundary>
+                <RequireReady>
+                  <SettingsPage />
                 </RequireReady>
               </ErrorBoundary>
             }

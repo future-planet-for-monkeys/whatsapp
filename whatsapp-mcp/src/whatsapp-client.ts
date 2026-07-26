@@ -4,27 +4,16 @@ import { readFileSync } from "node:fs";
 
 function loadConfig() {
   const apiBaseUrl = process.env.WHATSAPP_API_BASE_URL || "http://localhost:3000";
-  const apiToken = process.env.WHATSAPP_API_TOKEN;
-  const basicUsername = process.env.WHATSAPP_BASIC_AUTH_USERNAME;
-  const basicPassword = process.env.WHATSAPP_BASIC_AUTH_PASSWORD;
+  const apiJwt = process.env.WHATSAPP_API_JWT;
 
-  // Build the Authorization header — prefer token if available, else Basic
-  let authHeader: string | null = null;
-  if (apiToken) {
-    authHeader = apiToken; // sent as X-Api-Token
-  } else if (basicUsername && basicPassword) {
-    const encoded = Buffer.from(`${basicUsername}:${basicPassword}`).toString("base64");
-    authHeader = `Basic ${encoded}`; // sent as Authorization
-  }
-
-  if (!authHeader) {
+  if (!apiJwt) {
     console.error(
-      "[whatsapp-mcp] No auth configured. Set WHATSAPP_API_TOKEN or WHATSAPP_BASIC_AUTH_USERNAME / WHATSAPP_BASIC_AUTH_PASSWORD."
+      "[whatsapp-mcp] No auth configured. Set WHATSAPP_API_JWT."
     );
     process.exit(1);
   }
 
-  return { apiBaseUrl, authHeader: authHeader!, useToken: !!apiToken };
+  return { apiBaseUrl, authHeader: `Bearer ${apiJwt}` };
 }
 
 const CONFIG = loadConfig();
@@ -47,14 +36,9 @@ async function apiFetch<T>(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "Authorization": CONFIG.authHeader,
     ...(init.headers as Record<string, string> | undefined),
   };
-
-  if (CONFIG.useToken) {
-    headers["X-Api-Token"] = CONFIG.authHeader;
-  } else {
-    headers["Authorization"] = CONFIG.authHeader;
-  }
 
   const res = await fetch(url, {
     ...init,
@@ -155,6 +139,31 @@ export interface ClientStateResponse {
   ready: boolean;
 }
 
+export interface ContactDto {
+  id: string;
+  phoneNumber: string | null;
+  name: string | null;
+  pushname: string | null;
+  shortName: string | null;
+  isMyContact: boolean;
+  isBusiness: boolean;
+  isBlocked: boolean;
+  canEdit: boolean;
+  avatarUrl: string | null;
+}
+
+export interface SaveContactRequest {
+  firstName: string;
+  lastName: string;
+  syncToAddressbook: boolean;
+}
+
+export interface LabelDto {
+  id: string;
+  name: string;
+  hexColor: string;
+}
+
 // ── API methods ──────────────────────────────────────────────────────────────
 
 /** List chats, newest first. */
@@ -234,12 +243,9 @@ export async function sendMediaMessage(
 
   const url = `${CONFIG.apiBaseUrl}/single/messages/${encodeURIComponent(chatId)}/send-media`;
 
-  const headers: Record<string, string> = {};
-  if (CONFIG.useToken) {
-    headers["X-Api-Token"] = CONFIG.authHeader;
-  } else {
-    headers["Authorization"] = CONFIG.authHeader;
-  }
+  const headers: Record<string, string> = {
+    "Authorization": CONFIG.authHeader,
+  };
   // Don't set Content-Type — fetch sets it automatically with boundary for FormData
 
   const res = await fetch(url, {
@@ -265,12 +271,9 @@ export async function downloadMedia(
 ): Promise<{ data: Buffer; mimeType: string; filename: string | null } | null> {
   const url = `${CONFIG.apiBaseUrl}/single/messages/${encodeURIComponent(messageId)}/media`;
 
-  const headers: Record<string, string> = {};
-  if (CONFIG.useToken) {
-    headers["X-Api-Token"] = CONFIG.authHeader;
-  } else {
-    headers["Authorization"] = CONFIG.authHeader;
-  }
+  const headers: Record<string, string> = {
+    "Authorization": CONFIG.authHeader,
+  };
 
   const res = await fetch(url, { headers });
 
@@ -326,12 +329,9 @@ export async function getAvatar(
 ): Promise<{ dataURL: string; mimeType: string } | null> {
   const url = `${CONFIG.apiBaseUrl}/single/avatar/${encodeURIComponent(contactId)}`;
 
-  const headers: Record<string, string> = {};
-  if (CONFIG.useToken) {
-    headers["X-Api-Token"] = CONFIG.authHeader;
-  } else {
-    headers["Authorization"] = CONFIG.authHeader;
-  }
+  const headers: Record<string, string> = {
+    "Authorization": CONFIG.authHeader,
+  };
 
   const res = await fetch(url, { headers });
 
@@ -348,4 +348,65 @@ export async function getAvatar(
   const arrayBuffer = await res.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
   return { dataURL: `data:${mimeType};base64,${base64}`, mimeType };
+}
+
+/** Edit a previously-sent message. */
+export async function editMessage(id: string, newBody: string): Promise<MessageDto> {
+  return apiFetch<MessageDto>(`/single/messages/${encodeURIComponent(id)}/edit`, {
+    method: "POST",
+    body: JSON.stringify({ newBody }),
+  });
+}
+
+/** Delete a message for everyone. */
+export async function deleteMessage(id: string): Promise<MessageDto> {
+  return apiFetch<MessageDto>(`/single/messages/${encodeURIComponent(id)}/delete`, {
+    method: "POST",
+  });
+}
+
+/** React to a message with an emoji. */
+export async function reactToMessage(id: string, emoji: string): Promise<MessageDto> {
+  return apiFetch<MessageDto>(`/single/messages/${encodeURIComponent(id)}/react`, {
+    method: "POST",
+    body: JSON.stringify({ emoji }),
+  });
+}
+
+/** Get contact details for a chat. */
+export async function getContact(chatId: string): Promise<ContactDto> {
+  return apiFetch<ContactDto>(`/single/contacts/${encodeURIComponent(chatId)}`);
+}
+
+/** Save or edit a contact in the user's address book. */
+export async function saveContact(chatId: string, body: SaveContactRequest): Promise<ContactDto> {
+  return apiFetch<ContactDto>(`/single/contacts/${encodeURIComponent(chatId)}/save`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Delete a contact from the user's address book. */
+export async function deleteContact(chatId: string): Promise<ContactDto> {
+  return apiFetch<ContactDto>(`/single/contacts/${encodeURIComponent(chatId)}/delete`, {
+    method: "POST",
+  });
+}
+
+/** Get all available Labels. */
+export async function getLabels(): Promise<LabelDto[]> {
+  return apiFetch<LabelDto[]>("/single/labels");
+}
+
+/** Get all Labels assigned to a specific chat. */
+export async function getChatLabels(chatId: string): Promise<LabelDto[]> {
+  return apiFetch<LabelDto[]>(`/single/chats/${encodeURIComponent(chatId)}/labels`);
+}
+
+/** Update the Labels assigned to a chat. */
+export async function updateChatLabels(chatId: string, labelIds: (string | number)[]): Promise<LabelDto[]> {
+  return apiFetch<LabelDto[]>(`/single/chats/${encodeURIComponent(chatId)}/labels`, {
+    method: "POST",
+    body: JSON.stringify({ labelIds }),
+  });
 }
