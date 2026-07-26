@@ -1,4 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import EmojiPicker from 'emoji-picker-react';
+import { Plus } from 'lucide-react';
 
 export interface ActionItem {
   label: string;
@@ -24,6 +26,15 @@ export default function ActionMenu({
   actions,
   onReact,
 }: ActionMenuProps): React.ReactElement | null {
+  const [showFullPicker, setShowFullPicker] = useState<boolean>(false);
+
+  // Reset full picker state when menu is closed/opened
+  useEffect(() => {
+    if (!isOpen) {
+      setShowFullPicker(false);
+    }
+  }, [isOpen]);
+
   // Prevent background scrolling when the menu is open
   useEffect(() => {
     if (isOpen) {
@@ -78,12 +89,36 @@ export default function ActionMenu({
                 {emoji}
               </button>
             ))}
+            {/* Plus Button for Full Emoji Picker */}
+            <button
+              onClick={() => setShowFullPicker(!showFullPicker)}
+              className={`text-xl hover:scale-125 active:scale-95 transition-transform duration-150 p-1 rounded-full w-10 h-10 flex items-center justify-center border border-gray-200 bg-white shadow-sm ${
+                showFullPicker ? 'text-whatsapp-teal border-whatsapp-teal' : 'text-gray-500'
+              }`}
+              title="More reactions"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
           </div>
         )}
 
-        {/* Actions List */}
-        <div className="py-1.5 max-h-[60vh] overflow-y-auto">
-          {actions.map((action, index) => (
+        {/* Full Emoji Picker for Reactions */}
+        {onReact && showFullPicker ? (
+          <div className="border-b border-gray-100 flex justify-center bg-white">
+            <EmojiPicker
+              onEmojiClick={(emojiData) => {
+                onReact(emojiData.emoji);
+                onClose();
+              }}
+              autoFocusSearch={true}
+              width="100%"
+              height={320}
+            />
+          </div>
+        ) : (
+          /* Actions List */
+          <div className="py-1.5 max-h-[60vh] overflow-y-auto">
+            {actions.map((action, index) => (
             <button
               key={index}
               onClick={() => {
@@ -99,8 +134,9 @@ export default function ActionMenu({
               </span>
               <span className="font-medium">{action.label}</span>
             </button>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Cancel Button for Mobile */}
         <div className="border-t border-gray-100 p-2 sm:hidden">

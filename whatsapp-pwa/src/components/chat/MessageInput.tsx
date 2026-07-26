@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageDto } from '../../api/types';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { Smile } from 'lucide-react';
 
 interface MessageInputProps {
   onSendText: (text: string) => Promise<void>;
@@ -23,8 +25,11 @@ export default function MessageInput({
   const [text, setText] = useState<string>(initialValue);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -56,6 +61,59 @@ export default function MessageInput({
     setText(e.target.value);
   };
 
+  const handleEmojiClick = (emojiData: EmojiClickData): void => {
+    const emoji = emojiData.emoji;
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = text.substring(0, start) + emoji + text.substring(end);
+      setText(newText);
+      
+      const newCursorPos = start + emoji.length;
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    } else {
+      setText(prev => prev + emoji);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent): void => {
+      const target = event.target as Node;
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(target) &&
+        emojiButtonRef.current &&
+        !emojiButtonRef.current.contains(target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
+
+  useEffect(() => {
+    const handleKeyDownEscape = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && showEmojiPicker) {
+        setShowEmojiPicker(false);
+        textareaRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDownEscape);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDownEscape);
+    };
+  }, [showEmojiPicker]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     // On mobile devices, Enter should insert a new line, not send.
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -73,6 +131,7 @@ export default function MessageInput({
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      setShowEmojiPicker(false);
     }
   };
 
@@ -101,6 +160,7 @@ export default function MessageInput({
       } else if (trimmedText) {
         await onSendText(trimmedText);
         setText('');
+        setShowEmojiPicker(false);
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
@@ -162,6 +222,18 @@ export default function MessageInput({
         </div>
       )}
 
+      {/* Emoji Picker Panel */}
+      {showEmojiPicker && (
+        <div ref={emojiPickerRef} className="flex justify-center border-b border-gray-200 pb-2 relative z-50">
+          <EmojiPicker
+            onEmojiClick={handleEmojiClick}
+            autoFocusSearch={false}
+            width="100%"
+            height={350}
+          />
+        </div>
+      )}
+
       {/* Input Bar */}
       <div className="flex items-end space-x-2">
         {/* Attachment Button */}
@@ -186,6 +258,22 @@ export default function MessageInput({
           onChange={handleFileChange}
           className="hidden"
         />
+
+        {/* Emoji Button */}
+        <button
+          ref={emojiButtonRef}
+          type="button"
+          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          disabled={isSending || disabled || !!selectedFile}
+          className={`flex-shrink-0 p-2.5 rounded-full transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center ${
+            showEmojiPicker
+              ? 'text-whatsapp-teal bg-teal-50 hover:bg-teal-100'
+              : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
+          }`}
+          title="Emojis"
+        >
+          <Smile className="w-6 h-6" />
+        </button>
 
         {/* Textarea */}
         <div className="flex-1 bg-white rounded-lg px-3 py-1.5 shadow-sm border border-gray-200">

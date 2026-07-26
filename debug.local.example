@@ -55,6 +55,6 @@ JWT_SECRET=debug-local-jwt-secret-change-me
 DATABASE_URL="file:./data/whatsapp.db"
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
-NODE_ENV=development
+NODE_ENV=_development
 TZ=UTC
 TEST_PHONE=+16073041892
