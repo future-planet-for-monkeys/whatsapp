@@ -1,35 +1,35 @@
 [
   {
-    "id":               "whatsapp-neo2",
-    "name":             "WhatsApp Neo2 API",
-    "description":      "Second instance — REST API for WhatsApp via whatsapp-web.js — send messages, get chats, forward webhooks. Built with tsoa.",
+    "id":               "whatsapp",
+    "name":             "WhatsApp API",
+    "description":      "REST API for WhatsApp via whatsapp-web.js — send messages, get chats, forward webhooks. Built with tsoa.",
     "category":         "Tools",
-    "port":             3022,
+    "port":             3020,
     "scheme":           "http",
     "icon":             "whatsapp",
     "color":            "green",
-    "docker_container": "whatsapp-neo2-api"
+    "docker_container": "whatsapp-api"
   },
   {
-    "id":               "whatsapp-neo2-chromium",
-    "name":             "WhatsApp Neo2 Chromium",
-    "description":      "Second instance — Remote Chromium browser controlled by the WhatsApp Neo2 API stack — open to scan the QR code.",
+    "id":               "whatsapp-chromium",
+    "name":             "WhatsApp Chromium",
+    "description":      "Remote Chromium browser controlled by the WhatsApp API stack — open to scan the QR code.",
     "category":         "Tools",
-    "port":             3008,
+    "port":             3005,
     "scheme":           "http",
     "icon":             "chromium",
     "color":            "blue",
-    "docker_container": "whatsapp-neo2-chromium"
+    "docker_container": "whatsapp-chromium"
   },
   {
-    "id":               "whatsapp-neo2-pwa",
-    "name":             "WhatsApp Neo2 PWA",
-    "description":      "Second instance — Progressive Web App front-end for chatting through the WhatsApp Neo2 API stack.",
+    "id":               "whatsapp-pwa",
+    "name":             "WhatsApp PWA",
+    "description":      "Progressive Web App front-end for chatting through the WhatsApp API stack.",
     "category":         "Tools",
     "port":             3009,
     "scheme":           "http",
     "icon":             "whatsapp",
     "color":            "green",
-    "docker_container": "whatsapp-neo2-pwa"
+    "docker_container": "whatsapp-pwa"
   }
 ]

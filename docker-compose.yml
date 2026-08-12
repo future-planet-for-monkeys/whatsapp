@@ -94,6 +94,7 @@ services:
       start_period: 60s
     networks:
       - whatsapp-internal
+      - proxy
 
   # ── PWA front-end ──────────────────────────────────────────────────────────
   # React/Vite static build served by nginx. Proxies every /single/* request
@@ -112,6 +113,7 @@ services:
         condition: service_healthy
     networks:
       - whatsapp-internal
+      - proxy
 
 volumes:
   session:
@@ -123,3 +125,5 @@ networks:
   whatsapp-internal:
     name: ${INSTANCE_NAME:-whatsapp-neo}-internal
     driver: bridge
+  proxy:
+    external: true
