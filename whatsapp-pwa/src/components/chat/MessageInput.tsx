@@ -1,10 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { MessageDto } from '../../api/types';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { Smile } from 'lucide-react';
 
 interface MessageInputProps {
   onSendText: (text: string) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
   disabled?: boolean;
   initialValue?: string;
+  editingMessage?: MessageDto | null;
+  onCancelEdit?: () => void;
+  onSaveEdit?: (newText: string) => Promise<void>;
 }
 
 export default function MessageInput({
@@ -12,12 +18,18 @@ export default function MessageInput({
   onSendFile,
   disabled = false,
   initialValue = '',
+  editingMessage = null,
+  onCancelEdit,
+  onSaveEdit,
 }: MessageInputProps): React.ReactElement {
   const [text, setText] = useState<string>(initialValue);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState<boolean>(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   const adjustHeight = (): void => {
     const textarea = textareaRef.current;
@@ -36,11 +48,79 @@ export default function MessageInput({
     }
   }, [initialValue]);
 
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.body);
+      textareaRef.current?.focus();
+    } else {
+      setText('');
+    }
+  }, [editingMessage]);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setText(e.target.value);
   };
 
+  const handleEmojiClick = (emojiData: EmojiClickData): void => {
+    const emoji = emojiData.emoji;
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = text.substring(0, start) + emoji + text.substring(end);
+      setText(newText);
+      
+      const newCursorPos = start + emoji.length;
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    } else {
+      setText(prev => prev + emoji);
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent): void => {
+      const target = event.target as Node;
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(target) &&
+        emojiButtonRef.current &&
+        !emojiButtonRef.current.contains(target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
+
+  useEffect(() => {
+    const handleKeyDownEscape = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && showEmojiPicker) {
+        setShowEmojiPicker(false);
+        textareaRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDownEscape);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDownEscape);
+    };
+  }, [showEmojiPicker]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    // On mobile devices, Enter should insert a new line, not send.
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -51,6 +131,7 @@ export default function MessageInput({
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      setShowEmojiPicker(false);
     }
   };
 
@@ -68,12 +149,18 @@ export default function MessageInput({
 
     setIsSending(true);
     try {
-      if (selectedFile) {
+      if (editingMessage && onSaveEdit) {
+        await onSaveEdit(trimmedText);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+      } else if (selectedFile) {
         await onSendFile(selectedFile);
         handleRemoveFile();
       } else if (trimmedText) {
         await onSendText(trimmedText);
         setText('');
+        setShowEmojiPicker(false);
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
@@ -89,6 +176,29 @@ export default function MessageInput({
 
   return (
     <div className="flex flex-col bg-[#f0f2f5] border-t border-gray-200 px-4 py-2 pb-[calc(8px+env(safe-area-inset-bottom))]">
+      {/* Editing Message Banner */}
+      {editingMessage && (
+        <div className="flex items-center justify-between bg-[#ffeecd] px-3 py-2 rounded-lg mb-2 shadow-sm border border-[#ffd08a]">
+          <div className="flex items-center space-x-2 min-w-0">
+            <span className="text-xl">✏️</span>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-amber-800">Editing message</p>
+              <p className="text-sm text-amber-900 truncate">{editingMessage.body}</p>
+            </div>
+          </div>
+          {onCancelEdit && (
+            <button
+              onClick={onCancelEdit}
+              className="text-amber-700 hover:text-amber-900 p-2.5 rounded-full hover:bg-amber-100 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Selected File Preview Bar */}
       {selectedFile && (
         <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg mb-2 shadow-sm border border-gray-200">
@@ -112,12 +222,24 @@ export default function MessageInput({
         </div>
       )}
 
+      {/* Emoji Picker Panel */}
+      {showEmojiPicker && (
+        <div ref={emojiPickerRef} className="flex justify-center border-b border-gray-200 pb-2 relative z-50">
+          <EmojiPicker
+            onEmojiClick={handleEmojiClick}
+            autoFocusSearch={false}
+            width="100%"
+            height={350}
+          />
+        </div>
+      )}
+
       {/* Input Bar */}
       <div className="flex items-end space-x-2">
         {/* Attachment Button */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={isSending || disabled}
+          disabled={isSending || disabled || !!editingMessage}
           className="flex-shrink-0 text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
           title="Attach file"
         >
@@ -137,6 +259,22 @@ export default function MessageInput({
           className="hidden"
         />
 
+        {/* Emoji Button */}
+        <button
+          ref={emojiButtonRef}
+          type="button"
+          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          disabled={isSending || disabled || !!selectedFile}
+          className={`flex-shrink-0 p-2.5 rounded-full transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center ${
+            showEmojiPicker
+              ? 'text-whatsapp-teal bg-teal-50 hover:bg-teal-100'
+              : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
+          }`}
+          title="Emojis"
+        >
+          <Smile className="w-6 h-6" />
+        </button>
+
         {/* Textarea */}
         <div className="flex-1 bg-white rounded-lg px-3 py-1.5 shadow-sm border border-gray-200">
           <textarea
@@ -144,7 +282,7 @@ export default function MessageInput({
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder={selectedFile ? 'Press send to upload file...' : 'Type a message'}
+            placeholder={editingMessage ? 'Edit your message...' : (selectedFile ? 'Press send to upload file...' : 'Type a message')}
             disabled={isSending || disabled || !!selectedFile}
             rows={1}
             className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-sm text-gray-800 resize-none max-h-[140px] py-1"

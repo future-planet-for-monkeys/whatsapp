@@ -1,9 +1,21 @@
 import { Controller, Get, Query, Route, Tags, Security, Res, type TsoaResponse, Path, Post, Body, UploadedFile, Request, Produces } from "tsoa";
 import { type Chat, ChatId, Client, Message, MessageId, MessageMedia, MessageTypes, WAState } from "whatsapp-web.js";
 import { CLIENT } from "../client";
+import { config } from "../config";
 import { WhatsAppClientWithCache } from "../services/WhatsAppService.v2";
 import type { Request as ExpressRequest } from "express";
 import fs from "node:fs";
+import {
+    getMessageSender,
+    getMessageReadBy,
+    upsertMessage,
+    markMessageSent,
+    markMessageSeen,
+    logMessageChange,
+    getMessageEditDeleteInfo,
+    setMessageReaction,
+    getReactionAttribution,
+} from "../services/MessageService";
 
 // ── 0.8: Widen the union to match real-world WhatsApp types ────────────────
 export type AllowedMessageTypes =
@@ -14,12 +26,14 @@ export type AllowedMessageTypes =
     | MessageTypes.VOICE      // 'ptt' — voice notes, extremely common
     | MessageTypes.DOCUMENT   // 'document'
     | MessageTypes.STICKER    // 'sticker'
+    | MessageTypes.REVOKED
     | 'unsupported';
 
 const RENDERABLE = new Set<string>([
     MessageTypes.TEXT, MessageTypes.IMAGE, MessageTypes.VIDEO,
     MessageTypes.AUDIO, MessageTypes.VOICE, MessageTypes.DOCUMENT,
     MessageTypes.STICKER,
+    MessageTypes.REVOKED,
 ]);
 
 function toAllowedType(type: string): AllowedMessageTypes {
@@ -59,14 +73,46 @@ export interface MessageIdDto {
     _serialized: string;
 }
 
+export interface ReactionDto {
+    /** The emoji character */
+    emoji: string;
+    /** Number of senders who reacted with this emoji (from WhatsApp live data) */
+    count: number;
+    /** Whether the current WhatsApp identity has reacted with this emoji */
+    reactedByMe: boolean;
+    /** App users who set this reaction (from local DB attribution) */
+    users: { userId?: string; name: string }[];
+}
+
 export interface MessageDto {
     id: MessageIdDto;
     body: string;
     hasMedia: boolean;
     type: AllowedMessageTypes;
     from: ContactInfoDto;
+    sentByUser: {
+        userId: string;
+        name: string;
+        phoneNumber: string;
+    }
+    readBy: {
+        [userId: string]: any; // Maps userId to a boolean indicating if the user has read the message
+        someone: boolean; // Indicates if at least one user has read the message
+        me: boolean; // Indicates if the current user has read the message
+        users: { userId: string; name: string }[];
+    };
     /** Unix epoch seconds */
     timestamp: number;
+    /** Whether the message has been edited (via our app) */
+    isEdited: boolean;
+    /** Who performed the last edit, if any */
+    editedBy: { userId: string; name: string } | null;
+    /** Whether the message has been deleted (via our app) */
+    isDeleted: boolean;
+    /** Who performed the deletion, if any */
+    deletedBy: { userId: string; name: string } | null;
+    /** Aggregated reactions from WhatsApp live data, enriched with local attribution */
+    reactions: ReactionDto[];
 }
 
 export interface ContactInfoDto {
@@ -76,8 +122,8 @@ export interface ContactInfoDto {
     avatarUrl: string | null;
 }
 
-async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Chat): Promise<MessageDto | null> {
-    const lastMessagePromise = chat.lastMessage ? toMessageDto(client, chat.lastMessage, false) : null;
+async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Chat, currentUserId: string): Promise<MessageDto | null> {
+    const lastMessagePromise = chat.lastMessage ? toMessageDto(client, chat.lastMessage,currentUserId,  false) : null;
     const lastMessage = await lastMessagePromise;
     if (lastMessage && lastMessage.type !== 'unsupported') {
         return lastMessage;
@@ -85,12 +131,12 @@ async function lastAllowedTypeMessage(client: WhatsAppClientWithCache, chat: Cha
     const messages = await chat.fetchMessages({ limit: 10 });
     const lastAllowed = messages.reverse().find(msg => toAllowedType(msg.type) !== 'unsupported');
     if (lastAllowed) {
-        return await toMessageDto(client, lastAllowed, false);
+        return await toMessageDto(client, lastAllowed, currentUserId, false);
     }
     return null;
 }
 
-async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImmediately = false): Promise<ChatDto> {
+async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, currentUserId: string, resolveImmediately = false): Promise<ChatDto> {
     const avatarUrl = await client.resolveAvatar(chat.id._serialized, resolveImmediately);
     return {
         archived: chat.archived,
@@ -104,15 +150,69 @@ async function toChatDto(client: WhatsAppClientWithCache, chat: Chat, resolveImm
         // server-side and always returns a plain, unencrypted image.
         chatAvatarUrl: avatarUrl?.avatarUrl ? `/avatar/${encodeURIComponent(chat.id._serialized)}` : null,
         unreadCount: chat.unreadCount,
-        lastMessage: await lastAllowedTypeMessage(client, chat),
+        lastMessage: await lastAllowedTypeMessage(client, chat, currentUserId),
         pinned: chat.pinned,
         timestamp: chat.timestamp,
     };
 }
 
-async function toMessageDto(client: WhatsAppClientWithCache, message: Message, resolveImmediately = false): Promise<MessageDto> {
+async function toMessageDto(client: WhatsAppClientWithCache, message: Message, currentUserId: string, resolveImmediately = false): Promise<MessageDto> {
     const authorId = message.author || message.from;
     const contactInfo = await client.resolveContactInfo(authorId, resolveImmediately);
+    const messageId = message.id._serialized;
+
+    // Enrich with Prisma-backed metadata (best-effort — defaults on miss)
+    const [sender, readBy, editDeleteInfo, reactionAttribution] = await Promise.all([
+        getMessageSender(messageId),
+        getMessageReadBy(messageId, currentUserId),
+        getMessageEditDeleteInfo(messageId),
+        getReactionAttribution(messageId),
+    ]);
+
+    // Fetch live reactions from WhatsApp (gated on hasReaction to avoid
+    // unnecessary Puppeteer round-trips)
+    let reactions: ReactionDto[] = [];
+    if ((message as any).hasReaction) {
+        try {
+            const liveReactions = await (message as any).getReactions();
+            if (liveReactions && Array.isArray(liveReactions)) {
+                reactions = liveReactions.map((r: any) => {
+                    const senders = (r.senders || []).map((s: any) => ({
+                        name: s.senderId || "Unknown",
+                    }));
+                    // Merge local attribution: if our app user set this emoji,
+                    // include their info
+                    const localUsers: { userId?: string; name: string }[] = [];
+                    if (reactionAttribution && reactionAttribution.emoji === r.aggregateEmoji) {
+                        localUsers.push({
+                            userId: reactionAttribution.userId,
+                            name: reactionAttribution.name,
+                        });
+                    }
+                    // Also include WhatsApp senders
+                    for (const s of senders) {
+                        localUsers.push({ name: s.name });
+                    }
+
+                    return {
+                        emoji: r.aggregateEmoji,
+                        count: r.senders ? r.senders.length : 0,
+                        reactedByMe: r.hasReactionByMe || false,
+                        users: localUsers,
+                    };
+                });
+            }
+        } catch (err) {
+            // getReactions() can fail if the message isn't fully loaded;
+            // silently fall back to empty reactions array
+            console.error(`Failed to fetch reactions for message ${messageId}:`, err);
+        }
+    }
+
+    // Determine if the message is deleted (WhatsApp marks revoked messages
+    // with type 'revoked')
+    const isRevoked = message.type === MessageTypes.REVOKED;
+
     return {
         id: {
             fromMe: message.id.fromMe,
@@ -120,11 +220,18 @@ async function toMessageDto(client: WhatsAppClientWithCache, message: Message, r
             id: message.id.id,
             _serialized: message.id._serialized,
         },
-        body: message.body,
-        hasMedia: message.hasMedia,
+        body: isRevoked ? "" : message.body,
+        hasMedia: isRevoked ? false : message.hasMedia,
         type: toAllowedType(message.type),
         from: await toContactInfoDto(client, contactInfo, resolveImmediately),
+        sentByUser: sender ?? { userId: '', name: '', phoneNumber: '' },
+        readBy,
         timestamp: message.timestamp,
+        isEdited: editDeleteInfo.isEdited,
+        editedBy: editDeleteInfo.editedBy,
+        isDeleted: editDeleteInfo.isDeleted || isRevoked,
+        deletedBy: editDeleteInfo.deletedBy,
+        reactions,
     };
 }
 
@@ -200,7 +307,7 @@ function mapWAStateToClientStatus(state: WAState | null): ClientStatus {
  */
 @Route('single')
 @Tags('Single')
-@Security('basicAuth')
+@Security('jwtAuth')
 export class SingleController extends Controller {
     private client: Promise<WhatsAppClientWithCache>;
 
@@ -215,6 +322,7 @@ export class SingleController extends Controller {
         @Query() limit = 50,
         @Query() offset = 0,
         @Query() includeArchived = false,
+        @Request() req: ExpressRequest,
     ): Promise<ChatDto[]> {
         const client = await this.client;
         const chats = await client.getChats();
@@ -224,13 +332,14 @@ export class SingleController extends Controller {
             .sort((a, b) => b.timestamp - a.timestamp);
         return await Promise.all(
             // 0.4: resolveImmediately = false for list endpoints
-            sorted.slice(offset, offset + limit).map(chat => toChatDto(client, chat, false))
+            sorted.slice(offset, offset + limit).map(chat => toChatDto(client, chat, req.user?.userId || '', false))
         );
     }
 
     @Get('chats/{id}')
     async getChatById(
         @Path() id: string,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<ChatDto> {
         const client = await this.client;
@@ -238,19 +347,34 @@ export class SingleController extends Controller {
         if (!chat) {
             return notFoundResponse(404, { message: 'Chat not found' });
         }
-        return await toChatDto(client, chat, true);
+        return await toChatDto(client, chat, req.user?.userId || '', true);
     }
 
     // ── 0.7: Mark-as-read endpoint ─────────────────────────────────────────
     @Post('chats/{id}/read')
     async markAsRead(
         @Path() id: string,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<{ success: boolean }> {
         const client = await this.client;
         const chat = await client.getChatById(id);
         if (!chat) return notFoundResponse(404, { message: 'Chat not found' });
         await chat.sendSeen();
+
+        // Record the last 10 messages as seen by this user so the
+        // readBy field is populated on subsequent fetches.
+        if (req.user?.userId) {
+            const messages = await chat.fetchMessages({ limit: 10 });
+            await Promise.all(
+                messages.map(msg =>
+                    upsertMessage(msg.id._serialized, id, { body: msg.body }).then(() =>
+                        markMessageSeen(req.user!.userId, msg.id._serialized, id)
+                    )
+                )
+            );
+        }
+
         return { success: true };
     }
 
@@ -270,6 +394,7 @@ export class SingleController extends Controller {
         @Path() id: string,
         @Query() limit = 50,
         @Query() offset = 0,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
         @Res() badRequest: TsoaResponse<400, { error: string }>,
     ): Promise<MessageDto[]> {
@@ -290,8 +415,20 @@ export class SingleController extends Controller {
             .slice(start, end)
         const result = await Promise.all(
             // 0.4: resolveImmediately = false for list endpoints
-            sliced.map(msg => toMessageDto(client, msg, false))
+            sliced.map(msg => toMessageDto(client, msg, req.user?.userId || '', false))
         ).then(msgs => msgs.filter(msg => msg.type !== 'unsupported')); // Return oldest-first
+
+        // Implicitly mark fetched messages as seen by the requesting user.
+        // Fire-and-forget — never block the response on DB writes.
+        if (req.user?.userId) {
+            const uid = req.user.userId;
+            sliced.forEach(msg => {
+                upsertMessage(msg.id._serialized, id, { body: msg.body }).then(() =>
+                    markMessageSeen(uid, msg.id._serialized, id)
+                ).catch(err => console.error('Failed to record seen message:', err));
+            });
+        }
+
         return result;
     }
 
@@ -322,34 +459,6 @@ export class SingleController extends Controller {
             res.setHeader('Content-Disposition', `inline; filename="${media.filename}"`);
         }
         res.end(Buffer.from(media.data, 'base64'));
-    }
-
-    /**
-     * Get the current WhatsApp client connection state.
-     * Returns the raw WAState value along with a simplified status and readiness flag.
-     */
-    @Get('client/state')
-    async getClientState(): Promise<ClientStateResponse> {
-        const client = await this.client;
-        try {
-            const state = await client.getState();
-            const isQrState = state === WAState.UNPAIRED || state === WAState.UNPAIRED_IDLE || state === WAState.PAIRING;
-            return {
-                waState: state,
-                status: mapWAStateToClientStatus(state),
-                qrAvailable: isQrState,
-                qrDataURL: isQrState ? client.qrDataURL : null,
-                ready: state === WAState.CONNECTED,
-            };
-        } catch (error) {
-            return {
-                waState: 'UNKNOWN',
-                status: 'initializing',
-                qrAvailable: false,
-                qrDataURL: null,
-                ready: false,
-            };
-        }
     }
 
     /**
@@ -446,6 +555,7 @@ export class SingleController extends Controller {
             chatId: string;
             message: string;
         },
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<MessageDto> {
         const client = await this.client;
@@ -453,13 +563,25 @@ export class SingleController extends Controller {
         if (!messageResult) {
             return notFoundResponse(404, { message: 'Message not sent' });
         }
-        return toMessageDto(client, messageResult, true);
+
+        // Persist to database — attribute to sender and mark as seen by them
+        const messageId = messageResult.id._serialized;
+        await upsertMessage(messageId, request.chatId, { body: request.message });
+        if (req.user?.userId) {
+            await Promise.all([
+                markMessageSent(req.user.userId, messageId, request.chatId),
+                markMessageSeen(req.user.userId, messageId, request.chatId),
+            ]);
+        }
+
+        return toMessageDto(client, messageResult, req.user?.userId || '', true);
     }
 
     @Post('messages/{chatId}/send-media')
     async sendMedia(
         @Path() chatId: string,
         @UploadedFile() file: Express.Multer.File,
+        @Request() req: ExpressRequest,
         @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
     ): Promise<MessageDto> {
         const client = await this.client;
@@ -472,7 +594,167 @@ export class SingleController extends Controller {
         if (!messageResult) {
             return notFoundResponse(404, { message: 'Media not sent' });
         }
-        return toMessageDto(client, messageResult, true);
+
+        // Persist to database — attribute to sender and mark as seen by them
+        const messageId = messageResult.id._serialized;
+        await upsertMessage(messageId, chatId, { mediaMime: file.mimetype, fileName: file.originalname });
+        if (req.user?.userId) {
+            await Promise.all([
+                markMessageSent(req.user.userId, messageId, chatId),
+                markMessageSeen(req.user.userId, messageId, chatId),
+            ]);
+        }
+
+        return toMessageDto(client, messageResult, req.user?.userId || '', true);
+    }
+
+    // ── Message edit endpoint ──────────────────────────────────────────────
+    /**
+     * Edit a previously-sent message.
+     * Only messages sent by the current WhatsApp identity (fromMe) can be edited.
+     * The previous state is logged to MessageLog before the edit is applied.
+     */
+    @Post('messages/{id}/edit')
+    async editMessage(
+        @Path() id: string,
+        @Body() body: { newBody: string },
+        @Request() req: ExpressRequest,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+        @Res() forbiddenResponse: TsoaResponse<403, { message: string }>,
+    ): Promise<MessageDto> {
+        const client = await this.client;
+        const message = await client.getMessageById(id);
+        if (!message) {
+            return notFoundResponse(404, { message: 'Message not found' });
+        }
+        if (!message.fromMe) {
+            return forbiddenResponse(403, { message: 'Can only edit your own messages' });
+        }
+
+        // Enforce edit time window limit
+        const ageInSeconds = (Date.now() / 1000) - message.timestamp;
+        if (ageInSeconds > config.MESSAGE_EDIT_WINDOW_SECONDS) {
+            return forbiddenResponse(403, { message: `Cannot edit messages older than ${config.MESSAGE_EDIT_WINDOW_SECONDS} seconds` });
+        }
+
+        const chatId = message.id.remote;
+
+        // Snapshot the current state before editing
+        const previousData = {
+            body: message.body,
+            type: message.type,
+            hasMedia: message.hasMedia,
+            timestamp: message.timestamp,
+        };
+
+        // Log the change for audit/attribution
+        if (req.user?.userId) {
+            await logMessageChange("EDIT", id, chatId, req.user.userId, previousData, body.newBody);
+        }
+
+        // Apply the edit via WhatsApp
+        await message.edit(body.newBody);
+
+        // Upsert the new state
+        await upsertMessage(id, chatId, { body: body.newBody });
+
+        // Re-fetch the message to get the updated state
+        const updatedMessage = await client.getMessageById(id);
+        if (!updatedMessage) {
+            return notFoundResponse(404, { message: 'Message not found after edit' });
+        }
+
+        return toMessageDto(client, updatedMessage, req.user?.userId || '', true);
+    }
+
+    // ── Message delete endpoint ────────────────────────────────────────────
+    /**
+     * Delete a message for everyone.
+     * Only messages sent by the current WhatsApp identity (fromMe) can be deleted.
+     * The previous state is logged to MessageLog before the delete is applied.
+     */
+    @Post('messages/{id}/delete')
+    async deleteMessage(
+        @Path() id: string,
+        @Request() req: ExpressRequest,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+        @Res() forbiddenResponse: TsoaResponse<403, { message: string }>,
+    ): Promise<MessageDto> {
+        const client = await this.client;
+        const message = await client.getMessageById(id);
+        if (!message) {
+            return notFoundResponse(404, { message: 'Message not found' });
+        }
+        if (!message.fromMe) {
+            return forbiddenResponse(403, { message: 'Can only delete your own messages' });
+        }
+
+        const chatId = message.id.remote;
+
+        // Snapshot the current state before deleting
+        const previousData = {
+            body: message.body,
+            type: message.type,
+            hasMedia: message.hasMedia,
+            timestamp: message.timestamp,
+        };
+
+        // Log the change for audit/attribution
+        if (req.user?.userId) {
+            await logMessageChange("DELETE", id, chatId, req.user.userId, previousData);
+        }
+
+        // Delete for everyone via WhatsApp
+        await message.delete(true);
+
+        // Upsert the revoked state
+        await upsertMessage(id, chatId, { body: "", type: "revoked", hasMedia: false });
+
+        // Re-fetch the message to get the updated (revoked) state
+        const updatedMessage = await client.getMessageById(id);
+        if (!updatedMessage) {
+            return notFoundResponse(404, { message: 'Message not found after delete' });
+        }
+
+        return toMessageDto(client, updatedMessage, req.user?.userId || '', true);
+    }
+
+    // ── Message react endpoint ─────────────────────────────────────────────
+    /**
+     * React to a message with an emoji.
+     * Send an empty string to remove the reaction.
+     * Works on any message (own or received).
+     */
+    @Post('messages/{id}/react')
+    async reactToMessage(
+        @Path() id: string,
+        @Body() body: { emoji: string },
+        @Request() req: ExpressRequest,
+        @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
+    ): Promise<MessageDto> {
+        const client = await this.client;
+        const message = await client.getMessageById(id);
+        if (!message) {
+            return notFoundResponse(404, { message: 'Message not found' });
+        }
+
+        const chatId = message.id.remote;
+
+        // Persist the reaction attribution locally
+        if (req.user?.userId) {
+            await setMessageReaction(req.user.userId, id, chatId, body.emoji);
+        }
+
+        // Mirror the reaction to WhatsApp
+        await message.react(body.emoji);
+
+        // Re-fetch the message to get the updated state
+        const updatedMessage = await client.getMessageById(id);
+        if (!updatedMessage) {
+            return notFoundResponse(404, { message: 'Message not found after react' });
+        }
+
+        return toMessageDto(client, updatedMessage, req.user?.userId || '', true);
     }
 
     // ── 0.6: Return whatsappId in check response ───────────────────────────
@@ -494,7 +776,25 @@ export class SingleController extends Controller {
         }
 
         const hasCountryCode = phone.trim().startsWith('+') || digits.length >= 11;
-        const candidates = hasCountryCode ? [digits] : [`1${digits}`, `52${digits}`];
+        let candidates: string[];
+        if (hasCountryCode) {
+            candidates = [digits];
+            // Mexico: toggle mobile prefix "1" after country code "52"
+            if (digits.startsWith('521') && digits.length === 13) {
+                // 5218681137923 → also try 528681137923 (landline format)
+                candidates.push('52' + digits.slice(3));
+            } else if (digits.startsWith('52') && !digits.startsWith('521') && digits.length === 12) {
+                // 528681137923 → also try 5218681137923 (mobile format)
+                candidates.push('521' + digits.slice(2));
+            }
+        } else {
+            // No country code detected — try common prefixes
+            candidates = [
+                `1${digits}`,      // US/Canada
+                `521${digits}`,    // Mexico mobile
+                `52${digits}`,     // Mexico landline
+            ];
+        }
 
         try {
             const results = await Promise.all(
@@ -517,6 +817,41 @@ export class SingleController extends Controller {
                 error: err?.message ?? 'WhatsApp client not ready',
                 retryAfterSeconds: 10,
             });
+        }
+    }
+}
+
+@Route('single')
+@Tags('Single')
+export class StateController extends Controller {
+    private client: Promise<WhatsAppClientWithCache>;
+
+    constructor() {
+        super();
+        this.client = CLIENT;
+    }
+
+    @Get('client/state')
+    async getState(): Promise<ClientStateResponse> {
+        const client = await this.client;
+        try {
+            const state = await client.getState();
+            const isQrState = state === WAState.UNPAIRED || state === WAState.UNPAIRED_IDLE || state === WAState.PAIRING;
+            return {
+                waState: state,
+                status: mapWAStateToClientStatus(state),
+                qrAvailable: isQrState,
+                qrDataURL: isQrState ? client.qrDataURL : null,
+                ready: state === WAState.CONNECTED,
+            };
+        } catch (error) {
+            return {
+                waState: 'UNKNOWN',
+                status: 'initializing',
+                qrAvailable: false,
+                qrDataURL: null,
+                ready: false,
+            };
         }
     }
 }

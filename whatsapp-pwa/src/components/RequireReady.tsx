@@ -10,11 +10,12 @@ interface RequireReadyProps {
 
 export default function RequireReady({ children }: RequireReadyProps): React.ReactElement {
   const navigate = useNavigate();
-  const { username, password } = useAuthStore();
+  const { username, password, token } = useAuthStore();
   const hasCredentials = !!username && !!password;
+  const hasToken = !!token;
 
-  // If no credentials, redirect to login immediately
-  if (!hasCredentials) {
+  // If no credentials or no JWT token, redirect to login immediately
+  if (!hasCredentials || !hasToken) {
     return <Navigate to="/login" replace />;
   }
 

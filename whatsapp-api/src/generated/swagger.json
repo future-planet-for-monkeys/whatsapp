@@ -97,6 +97,12 @@
 				],
 				"type": "string"
 			},
+			"WAWebJS.MessageTypes.REVOKED": {
+				"enum": [
+					"revoked"
+				],
+				"type": "string"
+			},
 			"AllowedMessageTypes": {
 				"anyOf": [
 					{
@@ -119,6 +125,9 @@
 					},
 					{
 						"$ref": "#/components/schemas/WAWebJS.MessageTypes.STICKER"
+					},
+					{
+						"$ref": "#/components/schemas/WAWebJS.MessageTypes.REVOKED"
 					},
 					{
 						"type": "string",
@@ -156,6 +165,49 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ReactionDto": {
+				"properties": {
+					"emoji": {
+						"type": "string",
+						"description": "The emoji character"
+					},
+					"count": {
+						"type": "number",
+						"format": "double",
+						"description": "Number of senders who reacted with this emoji (from WhatsApp live data)"
+					},
+					"reactedByMe": {
+						"type": "boolean",
+						"description": "Whether the current WhatsApp identity has reacted with this emoji"
+					},
+					"users": {
+						"items": {
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"userId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"name"
+							],
+							"type": "object"
+						},
+						"type": "array",
+						"description": "App users who set this reaction (from local DB attribution)"
+					}
+				},
+				"required": [
+					"emoji",
+					"count",
+					"reactedByMe",
+					"users"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"MessageDto": {
 				"properties": {
 					"id": {
@@ -173,10 +225,113 @@
 					"from": {
 						"$ref": "#/components/schemas/ContactInfoDto"
 					},
+					"sentByUser": {
+						"properties": {
+							"phoneNumber": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"userId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"phoneNumber",
+							"name",
+							"userId"
+						],
+						"type": "object"
+					},
+					"readBy": {
+						"properties": {
+							"users": {
+								"items": {
+									"properties": {
+										"name": {
+											"type": "string"
+										},
+										"userId": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"name",
+										"userId"
+									],
+									"type": "object"
+								},
+								"type": "array"
+							},
+							"me": {
+								"type": "boolean"
+							},
+							"someone": {
+								"type": "boolean"
+							}
+						},
+						"additionalProperties": {},
+						"required": [
+							"users",
+							"me",
+							"someone"
+						],
+						"type": "object"
+					},
 					"timestamp": {
 						"type": "number",
 						"format": "double",
 						"description": "Unix epoch seconds"
+					},
+					"isEdited": {
+						"type": "boolean",
+						"description": "Whether the message has been edited (via our app)"
+					},
+					"editedBy": {
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"userId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"name",
+							"userId"
+						],
+						"type": "object",
+						"nullable": true,
+						"description": "Who performed the last edit, if any"
+					},
+					"isDeleted": {
+						"type": "boolean",
+						"description": "Whether the message has been deleted (via our app)"
+					},
+					"deletedBy": {
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"userId": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"name",
+							"userId"
+						],
+						"type": "object",
+						"nullable": true,
+						"description": "Who performed the deletion, if any"
+					},
+					"reactions": {
+						"items": {
+							"$ref": "#/components/schemas/ReactionDto"
+						},
+						"type": "array",
+						"description": "Aggregated reactions from WhatsApp live data, enriched with local attribution"
 					}
 				},
 				"required": [
@@ -185,7 +340,14 @@
 					"hasMedia",
 					"type",
 					"from",
-					"timestamp"
+					"sentByUser",
+					"readBy",
+					"timestamp",
+					"isEdited",
+					"editedBy",
+					"isDeleted",
+					"deletedBy",
+					"reactions"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -286,6 +448,173 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"ContactDto": {
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "WhatsApp serialized ID (e.g. \"1234567890@c.us\")"
+					},
+					"phoneNumber": {
+						"type": "string",
+						"nullable": true,
+						"description": "Phone number digits (e.g. \"12345678901\"), null if unresolvable (@lid-only)"
+					},
+					"name": {
+						"type": "string",
+						"nullable": true,
+						"description": "The contact's name as saved by the current user"
+					},
+					"pushname": {
+						"type": "string",
+						"nullable": true,
+						"description": "The name the contact has configured to be shown publicly"
+					},
+					"shortName": {
+						"type": "string",
+						"nullable": true,
+						"description": "Shortened version of name"
+					},
+					"isMyContact": {
+						"type": "boolean",
+						"description": "Whether this number is saved in the current phone's contacts"
+					},
+					"isBusiness": {
+						"type": "boolean",
+						"description": "Whether the contact is a business"
+					},
+					"isBlocked": {
+						"type": "boolean",
+						"description": "Whether the contact is blocked"
+					},
+					"canEdit": {
+						"type": "boolean",
+						"description": "Whether the contact can be edited (requires resolvable phone number)"
+					},
+					"avatarUrl": {
+						"type": "string",
+						"nullable": true,
+						"description": "Avatar URL path (our proxy endpoint)"
+					}
+				},
+				"required": [
+					"id",
+					"phoneNumber",
+					"name",
+					"pushname",
+					"shortName",
+					"isMyContact",
+					"isBusiness",
+					"isBlocked",
+					"canEdit",
+					"avatarUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SaveContactRequest": {
+				"properties": {
+					"firstName": {
+						"type": "string"
+					},
+					"lastName": {
+						"type": "string"
+					},
+					"syncToAddressbook": {
+						"type": "boolean",
+						"description": "If true, the contact will also be saved to the user's phone address book"
+					}
+				},
+				"required": [
+					"firstName",
+					"lastName",
+					"syncToAddressbook"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"LabelDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"hexColor": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"hexColor"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateChatLabelsRequest": {
+				"properties": {
+					"labelIds": {
+						"items": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "number",
+									"format": "double"
+								}
+							]
+						},
+						"type": "array",
+						"description": "Full set of label IDs to assign to the chat (replaces existing labels)"
+					}
+				},
+				"required": [
+					"labelIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"JWTContents": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"userId",
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateUserRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"password": {
+						"type": "string"
+					},
+					"phoneNumber": {
+						"type": "string"
+					},
+					"notes": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"password",
+					"phoneNumber"
+				],
+				"type": "object",
+				"additionalProperties": false
 			}
 		},
 		"securitySchemes": {
@@ -299,13 +628,19 @@
 				"type": "http",
 				"scheme": "basic",
 				"description": "BASIC_AUTH_USERNAME / BASIC_AUTH_PASSWORD from .env — standard HTTP Basic Auth"
+			},
+			"jwtAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT",
+				"description": "JWT obtained from POST /auth/login or POST /auth/signup — set as Authorization: Bearer <token>"
 			}
 		}
 	},
 	"info": {
 		"title": "WhatsApp Neo API",
 		"version": "2.0.0",
-		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAll routes except `/health` require either a Bearer token or Basic Auth:\n```\nX-Api-Token: <API_TOKEN>\nAuthorization: Basic <base64>\n```",
+		"description": "REST API for WhatsApp via whatsapp-web.js + remote Chromium CDP.\n\nAuth scheme split by endpoint type:\n- `/auth/*`     → Authorization: Basic <base64> (system credentials, obtain a JWT)\n- `/single/*`   → Authorization: Bearer <JWT>    (per-user state)\n- `/health`     → no auth required\n\nSee the Auth section for how to obtain a JWT via /auth/login or /auth/signup.",
 		"contact": {}
 	},
 	"paths": {
@@ -332,7 +667,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -406,7 +741,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -467,7 +802,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -542,7 +877,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -627,7 +962,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -640,33 +975,6 @@
 						}
 					}
 				]
-			}
-		},
-		"/single/client/state": {
-			"get": {
-				"operationId": "GetClientState",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ClientStateResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Get the current WhatsApp client connection state.\nReturns the raw WAState value along with a simplified status and readiness flag.",
-				"tags": [
-					"Single"
-				],
-				"security": [
-					{
-						"basicAuth": []
-					}
-				],
-				"parameters": []
 			}
 		},
 		"/single/avatar/{contactId}": {
@@ -719,7 +1027,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -775,7 +1083,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [],
@@ -832,7 +1140,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [],
@@ -898,7 +1206,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -926,6 +1234,240 @@
 								"required": [
 									"file"
 								]
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/messages/{id}/edit": {
+			"post": {
+				"operationId": "EditMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Edit a previously-sent message.\nOnly messages sent by the current WhatsApp identity (fromMe) can be edited.\nThe previous state is logged to MessageLog before the edit is applied.",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"newBody": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"newBody"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/messages/{id}/delete": {
+			"post": {
+				"operationId": "DeleteMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Delete a message for everyone.\nOnly messages sent by the current WhatsApp identity (fromMe) can be deleted.\nThe previous state is logged to MessageLog before the delete is applied.",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/messages/{id}/react": {
+			"post": {
+				"operationId": "ReactToMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MessageDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "React to a message with an emoji.\nSend an empty string to remove the reaction.\nWorks on any message (own or received).",
+				"tags": [
+					"Single"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"emoji": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"emoji"
+								],
+								"type": "object"
 							}
 						}
 					}
@@ -1019,7 +1561,7 @@
 				],
 				"security": [
 					{
-						"basicAuth": []
+						"jwtAuth": []
 					}
 				],
 				"parameters": [
@@ -1032,6 +1574,582 @@
 						}
 					}
 				]
+			}
+		},
+		"/single/client/state": {
+			"get": {
+				"operationId": "GetState",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ClientStateResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Single"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/single/contacts/{chatId}": {
+			"get": {
+				"operationId": "GetContact",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContactDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get contact details for a chat.\nReturns 400 for group chats (contacts are only for 1:1 chats).",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/contacts/{chatId}/save": {
+			"post": {
+				"operationId": "SaveContact",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContactDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Save or edit a contact in the user's address book.\nRequires a resolvable phone number —",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveContactRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/single/contacts/{chatId}/delete": {
+			"post": {
+				"operationId": "DeleteContact",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContactDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Delete a contact from the user's address book.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/single/labels": {
+			"get": {
+				"operationId": "GetLabels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/LabelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all available Labels.\nReturns an empty array for non-Business accounts (labels are a WhatsApp Business feature).",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/single/chats/{chatId}/labels": {
+			"get": {
+				"operationId": "GetChatLabels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/LabelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all Labels assigned to a specific chat.\nReturns an empty array for non-Business accounts.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "UpdateChatLabels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/LabelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update the Labels assigned to a chat.\nThe provided labelIds replace the entire set of labels on the chat\n(this is a full-set operation, not an add/remove toggle).\nReturns 403 for non-Business accounts.",
+				"tags": [
+					"Contacts"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "chatId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateChatLabelsRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/signup": {
+			"post": {
+				"operationId": "Signup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"user": {
+											"$ref": "#/components/schemas/JWTContents"
+										},
+										"token": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"user",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Register a new user who will share the WhatsApp session.\nEach user gets their own read/sent/seen state.\n\nSecurity: Basic Auth (system credentials).",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateUserRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/login": {
+			"post": {
+				"operationId": "Login",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"user": {
+											"$ref": "#/components/schemas/JWTContents"
+										},
+										"token": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"user",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Authenticate with phone number + password.\nReturns a JWT which should be sent as `Authorization: Bearer <token>`.\n\nSecurity: Basic Auth (system credentials).",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"basicAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"password": {
+										"type": "string"
+									},
+									"phoneNumber": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"password",
+									"phoneNumber"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/me": {
+			"get": {
+				"operationId": "Me",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JWTContents"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns the currently authenticated user's info.\nUseful for validating that a JWT is still valid and who it belongs to.\n\nSecurity: JWT (Authorization: Bearer <token>).",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/auth/mcp-token": {
+			"post": {
+				"operationId": "GenerateMcpToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"expiresIn": {
+											"type": "string"
+										},
+										"token": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"expiresIn",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a long-lived JWT for use with the MCP server.\nThe token is signed with the same secret as regular user JWTs but\nwith a configurable expiry duration.\n\nSecurity: JWT (Authorization: Bearer <token>).",
+				"tags": [
+					"Auth"
+				],
+				"security": [
+					{
+						"jwtAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"expiresIn": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"expiresIn"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
 			}
 		}
 	},

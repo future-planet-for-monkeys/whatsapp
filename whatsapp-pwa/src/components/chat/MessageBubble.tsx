@@ -3,12 +3,20 @@ import { MessageDto } from '../../api/types';
 import { format } from 'date-fns';
 import Avatar from '../ui/Avatar';
 import MediaBubble from './MediaBubble';
+import SeenByBubbles from './SeenByBubbles';
+import { useLongPress } from '../../hooks/useLongPress';
+import ActionMenu, { ActionItem } from '../ui/ActionMenu';
+import { Copy, Edit, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface MessageBubbleProps {
   message: MessageDto;
   isGroup: boolean;
   showDateSeparator: boolean;
   dateSeparatorText?: string;
+  onEdit?: (message: MessageDto) => void;
+  onDelete?: (messageId: string) => void;
+  onReact?: (messageId: string, emoji: string) => void;
 }
 
 export default function MessageBubble({
@@ -16,22 +24,63 @@ export default function MessageBubble({
   isGroup,
   showDateSeparator,
   dateSeparatorText,
+  onEdit,
+  onDelete,
+  onReact,
 }: MessageBubbleProps): React.ReactElement {
-  const { id, body, hasMedia, type, from, timestamp } = message;
+  const { id, body, hasMedia, type, from, timestamp, isEdited, reactions } = message;
+  const isDeleted = !!message.isDeleted || type === 'revoked';
   const isMe = id.fromMe;
   const timeStr = format(new Date(timestamp * 1000), 'HH:mm');
-  const [copied, setCopied] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleCopy = async () => {
     if (!body) return;
     try {
       await navigator.clipboard.writeText(body);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast.success('Message copied to clipboard');
     } catch (err) {
       console.error('Failed to copy text: ', err);
+      toast.error('Failed to copy message');
     }
   };
+
+  const longPressProps = useLongPress(() => {
+    if (!isDeleted) {
+      setIsMenuOpen(true);
+    }
+  });
+
+  const actions: ActionItem[] = [];
+
+  if (!isDeleted) {
+    if (body && body.trim().length > 0) {
+      actions.push({
+        label: 'Copy',
+        icon: <Copy className="w-4 h-4" />,
+        onClick: handleCopy,
+      });
+    }
+
+    const isWithinEditWindow = (Date.now() / 1000) - timestamp <= 180;
+
+    if (isMe && type === 'chat' && onEdit && isWithinEditWindow) {
+      actions.push({
+        label: 'Edit Message',
+        icon: <Edit className="w-4 h-4" />,
+        onClick: () => onEdit(message),
+      });
+    }
+
+    if (isMe && onDelete) {
+      actions.push({
+        label: 'Delete for Everyone',
+        icon: <Trash2 className="w-4 h-4" />,
+        onClick: () => onDelete(id._serialized),
+        danger: true,
+      });
+    }
+  }
 
   return (
     <div className="flex flex-col w-full">
@@ -59,7 +108,8 @@ export default function MessageBubble({
 
         {/* Message Bubble Container */}
         <div
-          className={`relative max-w-[70%] rounded-lg px-3 py-1.5 shadow-sm select-text group ${
+          {...longPressProps}
+          className={`relative max-w-[70%] rounded-lg px-3 py-1.5 shadow-sm select-none group cursor-pointer active:scale-[0.99] transition-transform duration-100 ${
             isMe
               ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-none'
               : 'bg-white text-gray-900 rounded-tl-none'
@@ -72,40 +122,65 @@ export default function MessageBubble({
             </div>
           )}
 
-          {/* Copy Button */}
-          {body && body.trim().length > 0 && (
-            <button
-              onClick={handleCopy}
-              className="absolute top-1 right-1 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-black hover:bg-opacity-5 md:opacity-0 md:group-hover:opacity-100 opacity-100 transition-opacity duration-150 select-none"
-              title="Copy message"
-            >
-              {copied ? (
-                <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                </svg>
-              )}
-            </button>
-          )}
-
           {/* Message Content */}
-          <div className="text-sm break-words pr-12">
-            <MediaBubble
-              messageId={id._serialized}
-              type={type}
-              body={body}
-              hasMedia={hasMedia}
-            />
+          <div className={`text-sm break-words ${message.readBy?.users && message.readBy.users.length > 0 ? 'pr-20' : 'pr-12'} ${reactions && reactions.length > 0 ? 'pb-2' : ''}`}>
+            {isDeleted ? (
+              <span className="text-gray-400 flex items-center gap-1 select-none">
+                <span className="text-xs">🚫</span> This message was deleted
+              </span>
+            ) : (
+              <MediaBubble
+                messageId={id._serialized}
+                type={type}
+                body={body}
+                hasMedia={hasMedia}
+              />
+            )}
           </div>
 
           {/* Timestamp */}
-          <div className="absolute bottom-1 right-2 flex items-center space-x-1">
+          <div className="absolute bottom-1 right-2 flex items-center space-x-1.5">
+            {isEdited && !isDeleted && (
+              <span className="text-[9px] text-gray-400 italic select-none">(edited)</span>
+            )}
+            {message.readBy?.users && message.readBy.users.length > 0 && (
+              <SeenByBubbles users={message.readBy.users} />
+            )}
             <span className="text-[10px] text-gray-500 select-none">{timeStr}</span>
           </div>
+
+          {/* Reactions */}
+          {reactions && reactions.length > 0 && (
+            <div className="absolute -bottom-2.5 right-3 flex items-center space-x-1 bg-white rounded-full px-1.5 py-0.5 shadow-sm border border-gray-100 text-xs select-none z-10">
+              {reactions.map((r, idx) => (
+                <span
+                  key={idx}
+                  title={r.users.map(u => u.name).join(', ')}
+                  className={`flex items-center space-x-0.5 cursor-pointer hover:scale-110 transition-transform ${r.reactedByMe ? 'font-semibold text-whatsapp-teal' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onReact) {
+                      onReact(id._serialized, r.reactedByMe ? '' : r.emoji);
+                    }
+                  }}
+                >
+                  <span>{r.emoji}</span>
+                  {r.count > 1 && <span className="text-[10px] text-gray-500">{r.count}</span>}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Action Menu */}
+        <ActionMenu
+          isOpen={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          title="Message Options"
+          subtitle={isDeleted ? 'This message was deleted' : (body && body.length > 60 ? `${body.slice(0, 60)}...` : body || undefined)}
+          actions={actions}
+          onReact={onReact ? (emoji) => onReact(id._serialized, emoji) : undefined}
+        />
       </div>
     </div>
   );

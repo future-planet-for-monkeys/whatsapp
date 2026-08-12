@@ -46,7 +46,15 @@ PORT=3099
 # from your real WhatsApp session(s). Scan a fresh QR code the first time.
 SESSION_DATA_PATH=./.wwebjs_auth_debug
 
+# ── JWT ───────────────────────────────────────────────────────────────────────
+# Secret used to sign and verify JWT tokens. Use a strong random value in production.
+JWT_SECRET=debug-local-jwt-secret-change-me
+
+# ── Database (SQLite) ─────────────────────────────────────────────────────────
+# SQLite database file path (Prisma). Relative to the whatsapp-api working directory.
+DATABASE_URL="file:./data/whatsapp.db"
+
 # ── Misc ──────────────────────────────────────────────────────────────────────
-NODE_ENV=development
+NODE_ENV=_development
 TZ=UTC
 TEST_PHONE=+16073041892

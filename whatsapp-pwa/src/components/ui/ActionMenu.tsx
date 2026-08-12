@@ -1,0 +1,153 @@
+import React, { useEffect, useState } from 'react';
+import EmojiPicker from 'emoji-picker-react';
+import { Plus } from 'lucide-react';
+
+export interface ActionItem {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}
+
+interface ActionMenuProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  subtitle?: string;
+  actions: ActionItem[];
+  onReact?: (emoji: string) => void;
+}
+
+export default function ActionMenu({
+  isOpen,
+  onClose,
+  title,
+  subtitle,
+  actions,
+  onReact,
+}: ActionMenuProps): React.ReactElement | null {
+  const [showFullPicker, setShowFullPicker] = useState<boolean>(false);
+
+  // Reset full picker state when menu is closed/opened
+  useEffect(() => {
+    if (!isOpen) {
+      setShowFullPicker(false);
+    }
+  }, [isOpen]);
+
+  // Prevent background scrolling when the menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black bg-opacity-40 transition-opacity duration-200 animate-fade-in"
+        onClick={onClose}
+      />
+
+      {/* Sheet / Modal */}
+      <div
+        className="relative w-full bg-white rounded-t-2xl shadow-xl transition-all duration-200 transform translate-y-0 sm:max-w-sm sm:rounded-2xl overflow-hidden z-10 animate-slide-up sm:animate-scale-in"
+      >
+        {/* Drag handle for mobile */}
+        <div className="flex justify-center py-2.5 sm:hidden">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+
+        {/* Header */}
+        {(title || subtitle) && (
+          <div className="px-4 pb-3 pt-1 sm:pt-3 border-b border-gray-100 select-none">
+            {title && <h4 className="text-sm font-semibold text-gray-900 truncate">{title}</h4>}
+            {subtitle && <p className="text-xs text-gray-500 truncate mt-0.5">{subtitle}</p>}
+          </div>
+        )}
+
+        {/* Reaction Picker */}
+        {onReact && (
+          <div className="flex justify-around items-center px-4 py-3 border-b border-gray-100 bg-gray-50">
+            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => {
+                  onReact(emoji);
+                  onClose();
+                }}
+                className="text-2xl hover:scale-125 active:scale-95 transition-transform duration-150 p-1"
+              >
+                {emoji}
+              </button>
+            ))}
+            {/* Plus Button for Full Emoji Picker */}
+            <button
+              onClick={() => setShowFullPicker(!showFullPicker)}
+              className={`text-xl hover:scale-125 active:scale-95 transition-transform duration-150 p-1 rounded-full w-10 h-10 flex items-center justify-center border border-gray-200 bg-white shadow-sm ${
+                showFullPicker ? 'text-whatsapp-teal border-whatsapp-teal' : 'text-gray-500'
+              }`}
+              title="More reactions"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        {/* Full Emoji Picker for Reactions */}
+        {onReact && showFullPicker ? (
+          <div className="border-b border-gray-100 flex justify-center bg-white">
+            <EmojiPicker
+              onEmojiClick={(emojiData) => {
+                onReact(emojiData.emoji);
+                onClose();
+              }}
+              autoFocusSearch={true}
+              width="100%"
+              height={320}
+            />
+          </div>
+        ) : (
+          /* Actions List */
+          <div className="py-1.5 max-h-[60vh] overflow-y-auto">
+            {actions.map((action, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                action.onClick();
+                onClose();
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors duration-150 hover:bg-gray-50 active:bg-gray-100 select-none ${
+                action.danger ? 'text-red-600' : 'text-gray-700'
+              }`}
+            >
+              <span className={`shrink-0 ${action.danger ? 'text-red-500' : 'text-gray-400'}`}>
+                {action.icon}
+              </span>
+              <span className="font-medium">{action.label}</span>
+            </button>
+            ))}
+          </div>
+        )}
+
+        {/* Cancel Button for Mobile */}
+        <div className="border-t border-gray-100 p-2 sm:hidden">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 text-center text-sm font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors duration-150 select-none"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

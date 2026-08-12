@@ -60,7 +60,7 @@ export class ClientOptionFactory {
             puppeteer: {
                 headless: config.PUPPETEER_HEADLESS,
                 defaultViewport: null,
-                protocolTimeout: 30000,
+                protocolTimeout: 120000,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',

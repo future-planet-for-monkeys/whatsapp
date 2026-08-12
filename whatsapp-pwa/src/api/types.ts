@@ -28,7 +28,15 @@ export type AllowedMessageTypes =
   | 'ptt'
   | 'document'
   | 'sticker'
+  | 'revoked'
   | 'unsupported';
+
+export interface ReactionDto {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  users: { userId?: string; name: string }[];
+}
 
 export interface MessageDto {
   id: MessageIdDto;
@@ -36,7 +44,23 @@ export interface MessageDto {
   hasMedia: boolean;
   type: AllowedMessageTypes;
   from: ContactInfoDto;
+  sentByUser: {
+    userId: string;
+    name: string;
+    phoneNumber: string;
+  };
+  readBy: {
+    [userId: string]: any;
+    someone: boolean;
+    me: boolean;
+    users: { userId: string; name: string }[];
+  };
   timestamp: number; // epoch seconds — multiply by 1000 for Date
+  isEdited?: boolean;
+  editedBy?: { userId: string; name: string } | null;
+  isDeleted?: boolean;
+  deletedBy?: { userId: string; name: string } | null;
+  reactions?: ReactionDto[];
 }
 
 export interface ChatDto {
@@ -72,4 +96,38 @@ export interface CheckResponse {
   whatsappId: string | null; // added in Phase 0.6
   contactInfo: ContactInfoDto | null;
   registered: boolean;
+}
+
+export interface LabelDto {
+  id: string;
+  name: string;
+  hexColor: string;
+}
+
+export interface ContactDto {
+  id: string;
+  phoneNumber: string | null;
+  name: string | null;
+  pushname: string | null;
+  shortName: string | null;
+  isMyContact: boolean;
+  isBusiness: boolean;
+  isBlocked: boolean;
+  canEdit: boolean;
+  avatarUrl: string | null;
+}
+
+export interface SaveContactRequest {
+  firstName: string;
+  lastName: string;
+  syncToAddressbook: boolean;
+}
+
+export interface UpdateChatLabelsRequest {
+  labelIds: (string | number)[];
+}
+
+export interface McpTokenResponse {
+  token: string;
+  expiresIn: string;
 }

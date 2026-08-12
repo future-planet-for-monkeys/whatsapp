@@ -7,12 +7,16 @@ import React, {
   useMemo,
 } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useChat,
   useChatMessages,
   useMarkAsRead,
   useSendText,
   useSendMedia,
+  useEditMessage,
+  useDeleteMessage,
+  useReactToMessage,
 } from "../../api/queries";
 import { MessageDto } from "../../api/types";
 import { formatMessageDateSeparator } from "../../utils/formatters";
@@ -21,6 +25,7 @@ import MessageInput from "./MessageInput";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import Avatar from "../ui/Avatar";
 import toast from "react-hot-toast";
+import ContactEditorModal from "../contact/ContactEditorModal";
 
 interface ChatViewProps {
   chatId: string;
@@ -44,6 +49,7 @@ export default function ChatView({
 }: ChatViewProps): React.ReactElement {
   const [searchParams] = useSearchParams();
   const initialMessage = searchParams.get("message") || "";
+  const queryClient = useQueryClient();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -62,6 +68,8 @@ export default function ChatView({
     [],
   );
   const [isLoadingOlder, setIsLoadingOlder] = useState<boolean>(false);
+  const [editingMessage, setEditingMessage] = useState<MessageDto | null>(null);
+  const [isContactModalOpen, setIsContactModalOpen] = useState<boolean>(false);
 
   // Fetch chat details
   const {
@@ -79,6 +87,51 @@ export default function ChatView({
   const markAsReadMutation = useMarkAsRead();
   const sendTextMutation = useSendText();
   const sendMediaMutation = useSendMedia();
+  const editMessageMutation = useEditMessage();
+  const deleteMessageMutation = useDeleteMessage();
+  const reactToMessageMutation = useReactToMessage();
+
+  const handleEditMessage = useCallback((message: MessageDto) => {
+    setEditingMessage(message);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
+
+  const handleSaveEdit = useCallback(async (newText: string) => {
+    if (!editingMessage) return;
+    try {
+      await editMessageMutation.mutateAsync({
+        id: editingMessage.id._serialized,
+        newBody: newText,
+      });
+      setEditingMessage(null);
+      toast.success("Message edited successfully");
+    } catch (error) {
+      toast.error("Failed to edit message");
+    }
+  }, [editingMessage, editMessageMutation]);
+
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
+    if (!window.confirm("Are you sure you want to delete this message for everyone?")) {
+      return;
+    }
+    try {
+      await deleteMessageMutation.mutateAsync(messageId);
+      toast.success("Message deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete message");
+    }
+  }, [deleteMessageMutation]);
+
+  const handleReactToMessage = useCallback(async (messageId: string, emoji: string) => {
+    try {
+      await reactToMessageMutation.mutateAsync({ id: messageId, emoji });
+    } catch (error) {
+      toast.error("Failed to react to message");
+    }
+  }, [reactToMessageMutation]);
 
   // --- Pin helper -----------------------------------------------------------
   const stickToBottom = useCallback((): void => {
@@ -177,6 +230,13 @@ export default function ChatView({
   useEffect(() => {
     triggerMarkAsRead();
   }, [chatId, chat?.unreadCount, triggerMarkAsRead]);
+
+  // Invalidate chats list query once messages are successfully fetched (and thus marked seen server-side)
+  useEffect(() => {
+    if (page0.isSuccess && page0.data) {
+      queryClient.invalidateQueries({ queryKey: ["chats"] });
+    }
+  }, [page0.isSuccess, page0.data, queryClient]);
 
   // --- THE PIN: re-assert bottom on every layout change ---------------------
   // This is the whole fix. Anything that changes the content's height fires
@@ -368,6 +428,16 @@ export default function ChatView({
         name: "Me",
         avatarUrl: null,
       },
+      sentByUser: {
+        userId: "",
+        name: "Me",
+        phoneNumber: "",
+      },
+      readBy: {
+        someone: false,
+        me: true,
+        users: [],
+      },
       timestamp: Math.floor(Date.now() / 1000),
     };
 
@@ -424,6 +494,16 @@ export default function ChatView({
         pn: null,
         name: "Me",
         avatarUrl: null,
+      },
+      sentByUser: {
+        userId: "",
+        name: "Me",
+        phoneNumber: "",
+      },
+      readBy: {
+        someone: false,
+        me: true,
+        users: [],
       },
       timestamp: Math.floor(Date.now() / 1000),
     };
@@ -494,7 +574,7 @@ export default function ChatView({
           {onBack && (
             <button
               onClick={onBack}
-              className="md:hidden text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="text-gray-600 hover:text-gray-800 p-2.5 rounded-full hover:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Back"
             >
               <svg
@@ -512,7 +592,17 @@ export default function ChatView({
               </svg>
             </button>
           )}
-          <Avatar contact={null} name={chat.name} size="sm" />
+          <Avatar
+            contact={{
+              lid: chat.isGroup ? null : chat.id._serialized,
+              pn: chat.isGroup ? null : chat.id._serialized,
+              name: chat.name,
+              avatarUrl: chat.chatAvatarUrl,
+            }}
+            name={chat.name}
+            size="sm"
+            onLongPress={!chat.isGroup ? () => setIsContactModalOpen(true) : undefined}
+          />
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-gray-800 truncate">
               {chat.name}
@@ -600,6 +690,9 @@ export default function ChatView({
                     isGroup={chat.isGroup}
                     showDateSeparator={showDateSeparator}
                     dateSeparatorText={dateSeparatorText}
+                    onEdit={handleEditMessage}
+                    onDelete={handleDeleteMessage}
+                    onReact={handleReactToMessage}
                   />
                 </div>
               );
@@ -612,9 +705,21 @@ export default function ChatView({
       <MessageInput
         onSendText={handleSendText}
         onSendFile={handleSendFile}
-        disabled={sendTextMutation.isPending || sendMediaMutation.isPending}
+        disabled={sendTextMutation.isPending || sendMediaMutation.isPending || editMessageMutation.isPending}
         initialValue={initialMessage}
+        editingMessage={editingMessage}
+        onCancelEdit={handleCancelEdit}
+        onSaveEdit={handleSaveEdit}
       />
+
+      {!chat.isGroup && (
+        <ContactEditorModal
+          isOpen={isContactModalOpen}
+          onClose={() => setIsContactModalOpen(false)}
+          chatId={chat.id._serialized}
+          chatName={chat.name}
+        />
+      )}
     </div>
   );
 }
